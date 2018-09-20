@@ -5,6 +5,8 @@ import json
 import serial
 from random import randint,triangular
 
+print("Initializing V.E.C.S.")
+
 pygame.init()
 
 screen_size_x,screen_size_y  = 1600, 1000
@@ -18,7 +20,7 @@ sensor_freq = 2000 #get sensor val. 1000 = 1sec
 serial_comm = ["startup"]
 serial_comm_max_len = 30
 
-
+print("Getting time")
 rawnow = datetime.datetime.now() #gets the systems version of time now
 setnow = datetime.datetime(2017, 12, 2, 6, 00, 1, 1) #default time, to be overwritten by time obtained from Arduino
 nowadjust = setnow - rawnow  #adjusted time
@@ -59,14 +61,14 @@ data_dict = {"TE":[75.0,76.0,75.5,78.0,78.5,79.0,80.0,81.0,79.2,78.9,"Error","Er
 
 override_dict = {"T":[80.0,70.5],"H":[100.0,70.0]}
 
-
+print("Setting up text options")
 #setting up text options (needs to be cleaned up, some use msg_obj some use font)
 pygame.font.init()  #must call this
 msg_obj = pygame.font.SysFont('New Times Roman', 30) #msg object to render, font and size
 font = pygame.font.Font(None,30)
 
 
-
+print("defining colors")
 #defining rgb colors for easy reference
 red = (255,0,0)
 green = (0,255,0)
@@ -79,7 +81,7 @@ yellow = (255,255,0)
 orange = (255,128,0)
 
 
-
+print("Setting up custom events")
 """custom events to be handled by the event handler"""
 CUSTOMEVENT = pygame.USEREVENT +1 #needs category attribute at a minimum
 gotoscreen_MC = pygame.event.Event(CUSTOMEVENT, category = 'changescreen', screen = 'MC')
@@ -1415,6 +1417,74 @@ class paasscreen(basic_screen):
 
 
 
+"""Arduino sim for coding without an actual arduino connected, and Arduino real for final version. Both should take same input and output the same format"""
+
+def arduino_sim(cmd_type,cmd_specific,cmd_data):
+	#cmd_data should equal "none" if get command
+	if cmd_type =="get":
+		if cmd_specific == "datetime":
+			pass
+			#get time and date simulation
+		elif cmd_specific == "sensordata":
+			pass
+			#get sensor data simulagtion
+		elif cmd_specific == "relaystate":
+			pass
+			#get relay state simulation
+	
+	elif cmd_type == "set":
+		if cmd_specific == "datetime":
+			pass
+			#set date time simulation and return the same data
+		elif cmd_specific == "overrides":
+			pass
+			#set overrides simulation
+		elif cmd_specific == "manualcontrol":
+			pass
+			#manual controll true or false
+		elif cmd_specific == "relaystate":
+			pass
+			#should only have effect if mannual control is true
+	
+	elif cmd_type == "establish":
+		serial_comm.append("serial comm sucessfull")
+		#establish serial comms simulation
+
+
+def arduino_real(cmd_type,cmd_specific,cmd_data):
+	#cmd_data should equal "none" if get command
+	if cmd_type =="get":
+		if cmd_specific == "datetime":
+			pass
+			#get time and date 
+		elif cmd_specific == "sensordata":
+			pass
+			#get sensor data 
+		elif cmd_specific == "relaystate":
+			pass
+			#get relay state 
+	
+	elif cmd_type == "set":
+		if cmd_specific == "datetime":
+			pass
+			#set date time and return the same data
+		elif cmd_specific == "overrides":
+			pass
+			#set overrides 
+		elif cmd_specific == "manualcontrol":
+			pass
+			#manual controll true or false
+		elif cmd_specific == "relaystate":
+			pass
+			#should only have effect if mannual control is true
+	
+	elif cmd_type == "establish":
+		serial_comm_start()
+		#establish serial comms 
+
+
+
+
 #initialize screens and therefore their objects
 main_s = mainscreen()
 mc_s = MCscreen()
@@ -1579,3 +1649,4 @@ while True:
 
     pygame.display.flip()    
     clock.tick(60)
+
