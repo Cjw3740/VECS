@@ -1,11 +1,12 @@
 import pygame
 from math import *  #can limit this to just the functions you need when you're closer to being done
+
+print("Initializing V.E.C.S.")
+print("Importing stuff")
 import datetime
 import json
 import serial
-from random import randint,triangular
-
-print("Initializing V.E.C.S.")
+from random import randint,triangular, choice
 
 pygame.init()
 
@@ -14,16 +15,16 @@ screen = pygame.display.set_mode((screen_size_x,screen_size_y))
 
 
 time_freq = 100 #freq for updating the time 1000 = 1sec
-sensor_freq = 2000 #get sensor val. 1000 = 1sec
+sensor_freq = 5000 #get sensor val. 1000 = 1sec
 
 #log of serial communications
 serial_comm = ["startup"]
 serial_comm_max_len = 30
 
 print("Getting time")
-rawnow = datetime.datetime.now() #gets the systems version of time now
-setnow = datetime.datetime(2017, 12, 2, 6, 00, 1, 1) #default time, to be overwritten by time obtained from Arduino
-nowadjust = setnow - rawnow  #adjusted time
+sys_now = datetime.datetime.now() #gets the systems version of time now
+set_now = datetime.datetime(2018, 9, 21, 6, 00, 1, 1) #default time, to be overwritten by time obtained from Arduino
+now_adjustment = set_now - sys_now  #adjusted time
 
 
 """Relay/ToDo stuff"""
@@ -35,14 +36,9 @@ ToDo = []
 settings_dict = {}
 
 """sensor related stuff"""
-num_sensors = 2 #eventually number of connected sensors will dynamic
-#sensor data format: time, temp1, humid1, temp2, humid2.....
-#each graph will graph one sensor value (or an average)
-sample_sensor_data = [[[7,0,0],75.0,82.4,76.5,83.0],[[7,0,5],76.0,81.4,76.5,84.0],[[7,0,10],75.5,80.4,76.5,85.0],[[7,0,15],74.0,79.4,76.5,82.0]]
-sample_temp_data = [[[7,0,0],75.0],[[7,0,5],76.0],[[7,0,10],75.5],[[7,0,15],"Error"],[[7,0,0],"Error"],[[7,0,5],76.0],[[7,0,10],75.5],[[7,0,15],78.0],[[7,0,0],75.0],[[7,0,5],77.0],[[7,0,10],75.5],[[7,0,15],74.0]]
+num_sensors = 2 #eventually number of connected sensors will be dynamic
 
-#this will be the big list that holds the time, sensor, relaystate,override state. To be dumped into a save file periodically to limit size
-data_list = []
+
 
 #max number of points to save in each small sensor reading list
 max_data_points = 100
@@ -60,6 +56,21 @@ data_dict = {"TE":[75.0,76.0,75.5,78.0,78.5,79.0,80.0,81.0,79.2,78.9,"Error","Er
 "HA":[]}
 
 override_dict = {"T":[80.0,70.5],"H":[100.0,70.0]}
+
+
+"""new sceme for handling data. Send Aurduino a 'get all' command and it shuld return date,relay state, and T/H pairs as text in the 
+following format: 'YYYY:MM:DD:HH:mm:SS-0000000000000000-TT.T/HH.H:TT.T/HH.H' 
+'-' deliniate the different sections, ':' different sub sections, and '/' seperated temp humidity pairs. 
+Bad sensor readings should be stored as 'error'
+Temp sensors can't give data more frequently thanonce every 2 sec, so say 5 sec between readings. This amounts to 56 bytes per reading for 2 sensors
+roughly 17,800 sensor readings for a megabyte of data, or roughly 24 hours of data collected. 
+Save every 24 hours at/near midnight.
+inbetween saves the data should be stored in the varialble 'data_log'"""
+
+data_log = []
+
+
+
 
 print("Setting up text options")
 #setting up text options (needs to be cleaned up, some use msg_obj some use font)
@@ -153,15 +164,15 @@ def serial_comm_start():
 
 
 def get_str_now():
-	tempnow = nowadjust + datetime.datetime.now()
+	tempnow = now_adjustment + datetime.datetime.now()
 	return tempnow.strftime("%m/%d/%y  %H:%M:%S")
 
 def get_str_time_now():
-	tempnow = nowadjust + datetime.datetime.now()
+	tempnow = now_adjustment + datetime.datetime.now()
 	return tempnow.strftime("%H:%M:%S")
 
 def get_str_date_now():
-	tempnow = nowadjust + datetime.datetime.now()
+	tempnow = now_adjustment + datetime.datetime.now()
 	return tempnow.strftime("%m/%d/%y")
 
 
@@ -898,7 +909,7 @@ class text_label():
 #graphing util - in progress
 #x tics define how many points to graph
 class time_graph():
-	global sample_temp_data
+
 	def __init__(self,position,size,min_val,max_val,t_range,x_tics,color,title,target):
 		self.x1,self.y1 = position
 		self.x2, self.y2 = position[0]+size[0],position[1]+size[1]
@@ -973,7 +984,9 @@ class time_graph():
 		if len(self.data)>=1: #draws the most current reading
 			pygame.draw.polygon(screen, white, ((self.x2+2,self.mv(self.data[0])),(self.x2+17,self.mv(self.data[0])-15),(self.x2+17,self.mv(self.data[0])+15)),1)
 			pygame.draw.polygon(screen, white, ((self.x2+20,self.mv(self.data[0])-15),(self.x2+20,self.mv(self.data[0])+15),(self.x2+70,self.mv(self.data[0])+15),(self.x2+70,self.mv(self.data[0])-15)),1)
-			if self.data[0] >= self.h_ov:
+			if self.data[0] == 'error':
+				txt_col = yellow
+			elif self.data[0] >= self.h_ov:
 				txt_col = red
 			elif self.data[0] <= self.l_ov:
 				txt_col = blue
@@ -1418,19 +1431,31 @@ class paasscreen(basic_screen):
 
 
 """Arduino sim for coding without an actual arduino connected, and Arduino real for final version. Both should take same input and output the same format"""
-
+"""'YYYY:MM:DD:HH:mm:SS-0000000000000000-TT.T/HH.H:TT.T/HH.H' is the format for data obtained from the arduino"""
 def arduino_sim(cmd_type,cmd_specific,cmd_data):
+	global serial_comm
 	#cmd_data should equal "none" if get command
 	if cmd_type =="get":
-		if cmd_specific == "datetime":
-			pass
-			#get time and date simulation
-		elif cmd_specific == "sensordata":
-			pass
-			#get sensor data simulagtion
-		elif cmd_specific == "relaystate":
-			pass
-			#get relay state simulation
+		if cmd_specific == "all":
+			now = datetime.datetime.now()+now_adjustment
+			YYYY,MM,DD,HH,mm,SS= str(now.year),str(now.month),str(now.day),str(now.hour),str(now.minute),str(now.second)
+			
+			rand_relay_state = "".join(str(randint(0,1)) for i in range(12)) #generates random relay state, to be replaced with something from the ToDo list
+			
+			rand_temps = ["81.0","78.0","76.0","75.5","75.0","74.5","74.0","73.0","69.0","error"]
+			rand_hums = ["81.0","80.0","79.0","69.0","error"]
+			rand_TH = ":".join(choice(rand_temps)+'/'+choice(rand_hums) for i in range(num_sensors)) #picks random values from list of possibles, which include errors
+			
+			sim_data = "-".join([":".join([YYYY,MM,DD]),rand_relay_state,rand_TH]) #putting it all together
+			
+			data_log.append(sim_data) #append new simulated data to the running datalog
+			
+			serial_comm.append("Pi: <get all>") #adding stuff to the debugging log
+			if len(serial_comm) > serial_comm_max_len:
+				del serial_comm[0]
+			serial_comm.append("ArduinoSIM:"+sim_data)
+			if len(serial_comm) > serial_comm_max_len:
+				del serial_comm[0]
 	
 	elif cmd_type == "set":
 		if cmd_specific == "datetime":
@@ -1507,24 +1532,29 @@ current_screen = main_s
 """EVENT HANDLER"""
 def event_handler(event):
 	global current_screen
-	global sample_temp_data
+	global data_log
 	global serial_comm
-	global data_list
+
 	#events without categories must come first in the elif chain
 	if event.type == SENSOR_EVENT:
 		#eventually this will be a get-sensor-data to the arduino and sorting of the received data into individual lists and an average
+		arduino_sim("get","all",None)
 		new_data_set = [[7,0,0],round(triangular(65,90,75),1),round(triangular(70,100,80),1),round(triangular(65,90,75),1),round(triangular(70,100,80),1),round(triangular(65,90,75),1),round(triangular(70,100,80),1),round(triangular(65,90,75),1),round(triangular(70,100,80),1),"0000000000000000",False]
-		data_list = new_data_set + data_list
 		
-		data_dict["TE"]=[new_data_set[1]] + data_dict["TE"]
+		#parsing the data from the last Arduino get
+		SD=data_log[-1].split('-')[2]
+		
+		
+		
+		if SD.split(':')[0].split('/')[0]=='error':
+			data_dict["TE"]=[SD.split(':')[0].split('/')[0]] + data_dict["TE"]
+		else:
+			data_dict["TE"]=[float(SD.split(':')[0].split('/')[0])] + data_dict["TE"]
 		data_dict["T1"]=[new_data_set[2]] + data_dict["T1"]
 		data_dict["H1"]=[new_data_set[3]] + data_dict["H1"]
 		data_dict["T2"]=[new_data_set[4]] + data_dict["T2"]
 		data_dict["H2"]=[new_data_set[5]] + data_dict["H2"]
-		data_dict["T3"]=[new_data_set[6]] + data_dict["T3"]
-		data_dict["H3"]=[new_data_set[7]] + data_dict["H3"]
-		data_dict["T4"]=[new_data_set[8]] + data_dict["T4"]
-		data_dict["H4"]=[new_data_set[9]] + data_dict["H4"]
+
 		
 		for key in data_dict:
 			if len(data_dict[key])>max_data_points:
@@ -1546,12 +1576,12 @@ def event_handler(event):
 				serial_send("<date>")
 				rec_date_data = serial_recieve()
 				Y,M,D,H,m,S,MS = [int(x) for x in rec_date_data[0:-1].split(".")[::-1]+rec_time_data[0:-1].split(":")+[1]] #converting what was received from arduino into a list of Year,month,day,hour,min,sec,milisec
-				global rawnow
-				global setnow
-				global nowadjust
-				rawnow = datetime.datetime.now() #gets the systems version of time now
-				setnow = datetime.datetime(Y,M,D,H,m,S,MS) #time to manually set your time to
-				nowadjust = setnow - rawnow
+				global sys_now
+				global set_now
+				global now_adjustment
+				sys_now = datetime.datetime.now() #gets the systems version of time now
+				set_now = datetime.datetime(Y,M,D,H,m,S,MS) #time to manually set your time to
+				now_adjustment = set_now - sys_now
 			except:
 				serial_comm.append("get time failed")
 				
@@ -1649,4 +1679,5 @@ while True:
 
     pygame.display.flip()    
     clock.tick(60)
+
 
