@@ -15,7 +15,7 @@ screen = pygame.display.set_mode((screen_size_x,screen_size_y))
 
 
 time_freq = 100 #freq for updating the time 1000 = 1sec
-sensor_freq = 5000 #get sensor val. 1000 = 1sec
+sensor_freq = 1000 #get sensor val. 1000 = 1sec, should be set to 5 sec for actual use
 
 #log of serial communications
 serial_comm = ["startup"]
@@ -746,6 +746,50 @@ bl[row][col][item]
 				btn.do(event) 
 
 
+#keypad control using toggle buttons
+class hex_pad_RS():
+	global relay_state
+	"""
+#an example
+button_list = 
+[[["label",default_state,do_pressed,do_unpressed],["label2",def_st,do_p,do_up]],
+[["label3",def_st,do_p,do_up],["label4",def_st,do_p,do_up],["label5",def_st,do_p,do_up]],
+[["label6",def_st,do_p,do_up],["label7",def_st,do_p,do_up]]]
+
+bl[row][col][item]
+"""
+	def __init__(self,initial_point,side_len,button_list,color):
+		self.xo,self.yo = initial_point
+		self.side_len = side_len
+		self.buttons_list = button_list
+		self.rows = int(len(button_list))
+		self.cols_list = [int(len(button_list[i])) for i in range(self.rows)]
+		self.color = color
+		self.hx = int(self.side_len * (sqrt(3))/2)
+		self.hy = int(self.side_len/2)
+		self.points = ((self.xo-int(1.5*self.hx),self.yo-self.hy),(self.xo+4*max(self.cols_list)*self.hx,self.yo-self.hy),(self.xo+2*max(self.cols_list)*self.hx,self.yo+5*self.hy*self.rows),(self.xo-self.hx,self.yo+5*self.hy*self.rows))
+		self.buttons = []
+		
+		for j in range(self.rows):
+			for i in range(len(self.buttons_list[j])):
+				self.buttons.append(button_hex_tog((self.xo+int(2.2*i*self.hx)-int(1.12*(j%2)*self.hx),self.yo+int(3.3*j*self.hy)),self.side_len,self.color,self.buttons_list[j][i][0],self.buttons_list[j][i][1],self.buttons_list[j][i][2],self.buttons_list[j][i][3]))
+		
+		
+	def draw(self):
+		for i,key in enumerate(self.buttons):
+			key.pressed = int(relay_state[i])
+			key.draw()
+	
+	def do(self,event):
+		mouse_pos_x,mouse_pos_y = pygame.mouse.get_pos()
+		for btn in self.buttons:
+			if inside_polygon(mouse_pos_x, mouse_pos_y,btn.points):
+				btn.do(event) 
+
+
+
+
+
 class time_label():
 	def __init__(self,loc,size,color):
 		self.loc = loc
@@ -771,6 +815,11 @@ class time_label():
 	def do(self,event):
 		if event.type == UPDATE_TIME_EVENT:
 			self.draw()
+
+
+
+
+
 
 
 """example button list: 
@@ -943,7 +992,7 @@ class time_graph():
 	def plot(self):
 		
 		pygame.draw.rect(screen,black, pygame.Rect((self.x1+1,self.y1+1,self.dx-2,self.dy-2)),0) #blacks out graph area
-		pygame.draw.rect(screen,black, pygame.Rect((self.x2+1,self.y1-16,80,self.dy+32)),0) #blacks out area to right of graph
+		pygame.draw.rect(screen,black, pygame.Rect((self.x2+1,self.y1-16,85,self.dy+32)),0) #blacks out area to right of graph, currently seperate to make it clear, should ultimatly be combined with above line
 		
 		#draws y axis tick marks
 		for i in range(round(self.min_val),round(self.max_val),1):
@@ -968,14 +1017,14 @@ class time_graph():
 				
 				pygame.draw.line(screen,self.color,(self.x2-i*self.dt-2,self.mv(self.data[i])),(self.x2-(i+1)*self.dt-1,self.mv(self.data[i+1])),1)
 		#high override
-		pygame.draw.polygon(screen, red, ((self.x2+2,self.mv(self.h_ov)),(self.x2+17,self.mv(self.h_ov)-15),(self.x2+17,self.mv(self.h_ov)+15)),1)
-		pygame.draw.polygon(screen, red, ((self.x2+20,self.mv(self.h_ov)-15),(self.x2+20,self.mv(self.h_ov)+15),(self.x2+70,self.mv(self.h_ov)+15),(self.x2+70,self.mv(self.h_ov)-15)),1)
+		pygame.draw.polygon(screen, red, ((self.x2+2,self.mv(self.h_ov)),(self.x2+17,self.mv(self.h_ov)-15),(self.x2+17,self.mv(self.h_ov)+15)),1) #triabgle
+		pygame.draw.polygon(screen, red, ((self.x2+20,self.mv(self.h_ov)-15),(self.x2+20,self.mv(self.h_ov)+15),(self.x2+85,self.mv(self.h_ov)+15),(self.x2+85,self.mv(self.h_ov)-15)),1) #box
 		data_txt = msg_obj.render(str(self.h_ov),False, red, black)
 		txt_loc =  (self.x2+27,self.mv(self.h_ov)-11)
 		screen.blit(data_txt,txt_loc)
 		#low override
 		pygame.draw.polygon(screen, blue, ((self.x2+2,self.mv(self.l_ov)),(self.x2+17,self.mv(self.l_ov)-15),(self.x2+17,self.mv(self.l_ov)+15)),1)
-		pygame.draw.polygon(screen, blue, ((self.x2+20,self.mv(self.l_ov)-15),(self.x2+20,self.mv(self.l_ov)+15),(self.x2+70,self.mv(self.l_ov)+15),(self.x2+70,self.mv(self.l_ov)-15)),1)
+		pygame.draw.polygon(screen, blue, ((self.x2+20,self.mv(self.l_ov)-15),(self.x2+20,self.mv(self.l_ov)+15),(self.x2+85,self.mv(self.l_ov)+15),(self.x2+85,self.mv(self.l_ov)-15)),1)
 		data_txt = msg_obj.render(str(self.l_ov),False, blue, black)
 		txt_loc =  (self.x2+27,self.mv(self.l_ov)-11)
 		screen.blit(data_txt,txt_loc)
@@ -983,7 +1032,7 @@ class time_graph():
 		
 		if len(self.data)>=1: #draws the most current reading
 			pygame.draw.polygon(screen, white, ((self.x2+2,self.mv(self.data[0])),(self.x2+17,self.mv(self.data[0])-15),(self.x2+17,self.mv(self.data[0])+15)),1)
-			pygame.draw.polygon(screen, white, ((self.x2+20,self.mv(self.data[0])-15),(self.x2+20,self.mv(self.data[0])+15),(self.x2+70,self.mv(self.data[0])+15),(self.x2+70,self.mv(self.data[0])-15)),1)
+			pygame.draw.polygon(screen, white, ((self.x2+20,self.mv(self.data[0])-15),(self.x2+20,self.mv(self.data[0])+15),(self.x2+85,self.mv(self.data[0])+15),(self.x2+85,self.mv(self.data[0])-15)),1)
 			if self.data[0] == 'error':
 				txt_col = yellow
 			elif self.data[0] >= self.h_ov:
@@ -1126,7 +1175,8 @@ class relay_status_bar():
 			
 		
 	def do(self,event):
-		pass
+		if event.type == UPDATE_TIME_EVENT:
+			self.draw()
 
 
 
@@ -1218,16 +1268,17 @@ class MCscreen(basic_screen):
 		
 		
 		b_list = [[["1",False,donothing,donothing],["2",False,donothing,donothing],["3",False,donothing,donothing]],[["4",False,donothing,donothing],["5",False,donothing,donothing],["6",False,donothing,donothing],["7",False,donothing,donothing]],[["8",False,donothing,donothing],["9",False,donothing,donothing],["0",False,donothing,donothing]],[["*",False,donothing,donothing],["#",False,donothing,donothing],["A",False,donothing,donothing],["B",False,donothing,donothing]],[["C",False,donothing,donothing],["D",False,donothing,donothing],["Reset",False,donothing,donothing]]]
-		hex_p = hex_pad((70,135),55,b_list,light_blue)
+		hex_p = hex_pad((150,150),80,b_list,light_blue)
 		
+		relay_status = relay_status_bar((500,15),light_blue)
 		
-		
+		MC_tog = button_rec_tog((800,300),(250,200),yellow,"MANUAL CONTROL",False,donothing,donothing)
 		
 		#time and date
 		rec_l_date = date_label((15,15),(100,30),light_blue)
 		rec_l_time = time_label((130,15),(100,30),light_blue)
 		
-		self.objects = [rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,hex_p]
+		self.objects = [rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,hex_p,relay_status,MC_tog]
 
 
 class tempscreen(basic_screen):
@@ -1432,35 +1483,52 @@ class paasscreen(basic_screen):
 
 """Arduino sim for coding without an actual arduino connected, and Arduino real for final version. Both should take same input and output the same format"""
 """'YYYY:MM:DD:HH:mm:SS-0000000000000000-TT.T/HH.H:TT.T/HH.H' is the format for data obtained from the arduino"""
-def arduino_sim(cmd_type,cmd_specific,cmd_data):
+def arduino_sim(cmd_type,cmd_specific):
 	global serial_comm
-	#cmd_data should equal "none" if get command
+	global now_adjustment
+	global relay_state
 	if cmd_type =="get":
 		if cmd_specific == "all":
 			now = datetime.datetime.now()+now_adjustment
 			YYYY,MM,DD,HH,mm,SS= str(now.year),str(now.month),str(now.day),str(now.hour),str(now.minute),str(now.second)
 			
-			rand_relay_state = "".join(str(randint(0,1)) for i in range(12)) #generates random relay state, to be replaced with something from the ToDo list
+			relay_state = "".join(str(randint(0,1)) for i in range(16))#generates random relay state, to be replaced with something from the ToDo list
 			
 			rand_temps = ["81.0","78.0","76.0","75.5","75.0","74.5","74.0","73.0","69.0","error"]
 			rand_hums = ["81.0","80.0","79.0","69.0","error"]
 			rand_TH = ":".join(choice(rand_temps)+'/'+choice(rand_hums) for i in range(num_sensors)) #picks random values from list of possibles, which include errors
 			
-			sim_data = "-".join([":".join([YYYY,MM,DD]),rand_relay_state,rand_TH]) #putting it all together
+			sim_data = "-".join([":".join([YYYY,MM,DD]),relay_state,rand_TH]) #putting it all together
 			
 			data_log.append(sim_data) #append new simulated data to the running datalog
 			
+			
+			"""
+			#disabling serial logging for get all to prevent the log from being quickly flooded with entried durring development
 			serial_comm.append("Pi: <get all>") #adding stuff to the debugging log
 			if len(serial_comm) > serial_comm_max_len:
 				del serial_comm[0]
 			serial_comm.append("ArduinoSIM:"+sim_data)
 			if len(serial_comm) > serial_comm_max_len:
 				del serial_comm[0]
+				"""
 	
 	elif cmd_type == "set":
 		if cmd_specific == "datetime":
-			pass
-			#set date time simulation and return the same data
+
+			year = datetime_s.slide_wheel_year.dial_output
+			month = datetime_s.slide_wheel_month.dial_output.zfill(2)
+			day = datetime_s.slide_wheel_day.dial_output.zfill(2)
+			hour = datetime_s.slide_wheel_hour.dial_output.zfill(2)
+			minute = datetime_s.slide_wheel_minute.dial_output.zfill(2)
+			second = datetime_s.slide_wheel_second.dial_output.zfill(2)
+			send_string = "<settime:"+year+":"+month+":"+day+":"+hour+":"+minute+":"+second+">"
+			
+			set_now = datetime.datetime(int(year), int(month), int(day), int(hour), int(minute), int(second), 0) #default time, to be overwritten by time obtained from Arduino
+			now_adjustment = set_now - sys_now  #adjusted time
+			
+			serial_comm.append("ArduinoSIM:" + send_string)
+			#set date time simulation
 		elif cmd_specific == "overrides":
 			pass
 			#set overrides simulation
@@ -1476,8 +1544,8 @@ def arduino_sim(cmd_type,cmd_specific,cmd_data):
 		#establish serial comms simulation
 
 
-def arduino_real(cmd_type,cmd_specific,cmd_data):
-	#cmd_data should equal "none" if get command
+def arduino_real(cmd_type,cmd_specific):
+
 	if cmd_type =="get":
 		if cmd_specific == "datetime":
 			pass
@@ -1491,7 +1559,19 @@ def arduino_real(cmd_type,cmd_specific,cmd_data):
 	
 	elif cmd_type == "set":
 		if cmd_specific == "datetime":
-			pass
+			year = datetime_s.slide_wheel_year.dial_output
+			month = datetime_s.slide_wheel_month.dial_output.zfill(2)
+			day = datetime_s.slide_wheel_day.dial_output.zfill(2)
+			hour = datetime_s.slide_wheel_hour.dial_output.zfill(2)
+			minute = datetime_s.slide_wheel_minute.dial_output.zfill(2)
+			second = datetime_s.slide_wheel_second.dial_output.zfill(2)
+			send_string = "<settime:"+year+":"+month+":"+day+":"+hour+":"+minute+":"+second+">"
+			
+			try:
+				serial_send(send_string)
+			except:
+				serial_comm.append("set time failed")
+				
 			#set date time and return the same data
 		elif cmd_specific == "overrides":
 			pass
@@ -1538,22 +1618,37 @@ def event_handler(event):
 	#events without categories must come first in the elif chain
 	if event.type == SENSOR_EVENT:
 		#eventually this will be a get-sensor-data to the arduino and sorting of the received data into individual lists and an average
-		arduino_sim("get","all",None)
+		arduino_sim("get","all")
 		new_data_set = [[7,0,0],round(triangular(65,90,75),1),round(triangular(70,100,80),1),round(triangular(65,90,75),1),round(triangular(70,100,80),1),round(triangular(65,90,75),1),round(triangular(70,100,80),1),round(triangular(65,90,75),1),round(triangular(70,100,80),1),"0000000000000000",False]
 		
 		#parsing the data from the last Arduino get
 		SD=data_log[-1].split('-')[2]
 		
 		
-		
+		#putting sensor readings into their appropriate sub lists for graphing. Need to generalize this based on num_sensors
 		if SD.split(':')[0].split('/')[0]=='error':
 			data_dict["TE"]=[SD.split(':')[0].split('/')[0]] + data_dict["TE"]
 		else:
 			data_dict["TE"]=[float(SD.split(':')[0].split('/')[0])] + data_dict["TE"]
-		data_dict["T1"]=[new_data_set[2]] + data_dict["T1"]
-		data_dict["H1"]=[new_data_set[3]] + data_dict["H1"]
-		data_dict["T2"]=[new_data_set[4]] + data_dict["T2"]
-		data_dict["H2"]=[new_data_set[5]] + data_dict["H2"]
+			
+		if SD.split(':')[0].split('/')[0]=='error':
+			data_dict["T1"]=[SD.split(':')[0].split('/')[0]] + data_dict["T1"]
+		else:
+			data_dict["T1"]=[float(SD.split(':')[0].split('/')[0])] + data_dict["T1"]
+		if SD.split(':')[0].split('/')[1]=='error':
+			data_dict["H1"]=[SD.split(':')[0].split('/')[1]] + data_dict["H1"]
+		else:
+			data_dict["H1"]=[float(SD.split(':')[0].split('/')[1])] + data_dict["H1"]
+
+		if SD.split(':')[1].split('/')[0]=='error':
+			data_dict["T2"]=[SD.split(':')[1].split('/')[0]] + data_dict["T2"]
+		else:
+			data_dict["T2"]=[float(SD.split(':')[1].split('/')[0])] + data_dict["T2"]
+		if SD.split(':')[1].split('/')[1]=='error':
+			data_dict["H2"]=[SD.split(':')[1].split('/')[1]] + data_dict["H2"]
+		else:
+			data_dict["H2"]=[float(SD.split(':')[1].split('/')[1])] + data_dict["H2"]
+		
 
 		
 		for key in data_dict:
@@ -1563,8 +1658,7 @@ def event_handler(event):
 		
 	elif event.category == "changescreen":
 		current_screen = screen_dict[event.screen]
-	
-
+		
 	
 	elif event.category == "timeevent":
 		
@@ -1587,7 +1681,9 @@ def event_handler(event):
 				
 
 		elif event == setTime:
-			
+		
+			arduino_sim("set","datetime")
+			"""
 			year = datetime_s.slide_wheel_year.dial_output
 			month = datetime_s.slide_wheel_month.dial_output.zfill(2)
 			day = datetime_s.slide_wheel_day.dial_output.zfill(2)
@@ -1600,6 +1696,7 @@ def event_handler(event):
 				serial_send(send_string)
 			except:
 				serial_comm.append("set time failed")
+			"""
 	
 	elif event.category == "todochange":
 		
@@ -1679,5 +1776,4 @@ while True:
 
     pygame.display.flip()    
     clock.tick(60)
-
 
