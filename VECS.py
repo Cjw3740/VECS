@@ -1,13 +1,13 @@
+print("Vivarium Environmental Control System: V.E.C.S.")
+print("Importing stuff")
 import pygame
 from math import *  #can limit this to just the functions you need when you're closer to being done
-
-print("Initializing V.E.C.S.")
-print("Importing stuff")
 import datetime
 import json
 import serial
 from random import randint,triangular, choice
 
+print("Initializing Pygame")
 pygame.init()
 
 screen_size_x,screen_size_y  = 1600, 1000
@@ -30,8 +30,9 @@ now_adjustment = set_now - sys_now  #adjusted time
 """Relay/ToDo stuff"""
 default_relay_state = "0000000000000000"
 relay_state = "0000000000000000"
+original_RS = ""
 relay_dict = {1:"Lights",2:"Mister",3:"Fogger 1",4:"Fogger Fan 1",5:"Fogger 2",6:"Fogger Fan 2",7:"Air Circulating Fan",8:"H20 Pump",9:"unused",10:"unused",11:"unused",12:"unused",13:"unused",14:"unused",15:"unused",16:"unused"}
-
+manual_control_engaged = False
 ToDo = []
 settings_dict = {}
 
@@ -113,6 +114,9 @@ ToDo_MIS = pygame.event.Event(CUSTOMEVENT, category = 'todochange', action = 'MI
 getTime = pygame.event.Event(CUSTOMEVENT, category = 'timeevent', action = 'getTime')
 setTime = pygame.event.Event(CUSTOMEVENT, category = 'timeevent', action = 'setTime')
 
+MC_enable = pygame.event.Event(CUSTOMEVENT, category = 'manualcontrol', action = 'enable')
+MC_disable = pygame.event.Event(CUSTOMEVENT, category = 'manualcontrol', action = 'disable')
+MC_reset = pygame.event.Event(CUSTOMEVENT, category = 'manualcontrol', action = 'reset')
 
 getSensorData = pygame.event.Event(CUSTOMEVENT, category = 'timeevent', action = 'getsensordata')
 
@@ -749,21 +753,14 @@ bl[row][col][item]
 #keypad control using toggle buttons
 class hex_pad_RS():
 	global relay_state
-	"""
-#an example
-button_list = 
-[[["label",default_state,do_pressed,do_unpressed],["label2",def_st,do_p,do_up]],
-[["label3",def_st,do_p,do_up],["label4",def_st,do_p,do_up],["label5",def_st,do_p,do_up]],
-[["label6",def_st,do_p,do_up],["label7",def_st,do_p,do_up]]]
-
-bl[row][col][item]
-"""
-	def __init__(self,initial_point,side_len,button_list,color):
+	
+	
+	def __init__(self,initial_point,side_len,color):
 		self.xo,self.yo = initial_point
 		self.side_len = side_len
-		self.buttons_list = button_list
-		self.rows = int(len(button_list))
-		self.cols_list = [int(len(button_list[i])) for i in range(self.rows)]
+		self.buttons_list = [[["1",False,donothing,donothing],["2",False,donothing,donothing],["3",False,donothing,donothing]],[["4",False,donothing,donothing],["5",False,donothing,donothing],["6",False,donothing,donothing],["7",False,donothing,donothing]],[["8",False,donothing,donothing],["9",False,donothing,donothing],["0",False,donothing,donothing]],[["*",False,donothing,donothing],["#",False,donothing,donothing],["A",False,donothing,donothing],["B",False,donothing,donothing]],[["C",False,donothing,donothing],["D",False,donothing,donothing],["Reset",False,donothing,donothing]]]
+		self.rows = int(len(self.buttons_list))
+		self.cols_list = [int(len(self.buttons_list[i])) for i in range(self.rows)]
 		self.color = color
 		self.hx = int(self.side_len * (sqrt(3))/2)
 		self.hy = int(self.side_len/2)
@@ -774,17 +771,27 @@ bl[row][col][item]
 			for i in range(len(self.buttons_list[j])):
 				self.buttons.append(button_hex_tog((self.xo+int(2.2*i*self.hx)-int(1.12*(j%2)*self.hx),self.yo+int(3.3*j*self.hy)),self.side_len,self.color,self.buttons_list[j][i][0],self.buttons_list[j][i][1],self.buttons_list[j][i][2],self.buttons_list[j][i][3]))
 		
+		self.buttons[-1].do_pressed = MC_reset
 		
 	def draw(self):
 		for i,key in enumerate(self.buttons):
-			key.pressed = int(relay_state[i])
+			if i < len(relay_state):
+				key.pressed = int(relay_state[i])
 			key.draw()
 	
+	#why does draw work without relay_state being declared global in it but do does not?
 	def do(self,event):
+		global relay_state
+		if event.type == UPDATE_TIME_EVENT:
+			self.draw()
 		mouse_pos_x,mouse_pos_y = pygame.mouse.get_pos()
 		for btn in self.buttons:
 			if inside_polygon(mouse_pos_x, mouse_pos_y,btn.points):
 				btn.do(event) 
+		
+		if manual_control_engaged:
+			relay_state = "".join(str(int(self.buttons[i].pressed)) for i in range(len(relay_state)))
+			
 
 
 
@@ -1071,7 +1078,7 @@ class debug_window():
 	def __init__(self,pos,ser_com):
 		self.x1,self.y1 = pos
 		self.data = ser_com
-		self.x2,self.y2 = (self.x1+400,self.y1+((serial_comm_max_len+1)*font.size("Example")[1]))
+		self.x2,self.y2 = (self.x1+700,self.y1+((serial_comm_max_len+1)*font.size("Example")[1]))
 		self.dx = self.x2-self.x1
 		self.dy = self.y2-self.y1
 		self.points = ((self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2))
@@ -1155,11 +1162,11 @@ class ToDo_window():
 #specifically designed for a 16 relay setup
 class relay_status_bar():
 	global relay_state
-	def __init__(self,pos,color):
+	def __init__(self,pos):
 		self.x1,self.y1 = pos
 		self.r = 10
 		self.spacing = 5
-		self.color = color
+		self.color = light_blue
 		self.x2,self.y2 = pos[0]+(32*self.r)+(17*self.spacing),pos[1]+2*(self.r+self.spacing)
 		self.relay_bool = []
 		self.dx = self.x2-self.x1
@@ -1167,8 +1174,13 @@ class relay_status_bar():
 		self.points = ((self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2))
 		
 	def draw(self):
+		global manual_control_engaged
+		if manual_control_engaged:
+			self.color = yellow
+		else:
+			self.color = light_blue
 		pygame.draw.rect(screen,black, pygame.Rect((self.x1,self.y1,self.dx,self.dy)))
-		pygame.draw.rect(screen,light_blue, pygame.Rect((self.x1,self.y1,self.dx,self.dy)),1)
+		pygame.draw.rect(screen,self.color, pygame.Rect((self.x1,self.y1,self.dx,self.dy)),1)
 		self.relay_bool = []
 		for i in range(len(relay_state)):
 			pygame.draw.circle(screen,self.color,(self.x1+self.r+self.spacing+i*(2*self.r+self.spacing),self.y1+self.r+self.spacing),self.r,not int(relay_state[i]))
@@ -1234,7 +1246,7 @@ class mainscreen(basic_screen):
 		rec_l_date = date_label((15,15),(100,30),light_blue)
 		rec_l_time = time_label((130,15),(100,30),light_blue)
 		
-		relay_status = relay_status_bar((500,15),light_blue)
+		relay_status = relay_status_bar((500,15))
 		
 		#rotating status display
 		rot_b_status = rot_image_button((self.xmax-300,self.ymax-300),"green_gear.png",1,donothing)
@@ -1255,7 +1267,7 @@ class MCscreen(basic_screen):
 		self.xmax = screen_size_x
 		self.ymax = screen_size_y
 		self.name = "Manual Control"
-		
+		self.warning = "*WARNING* Enabling manual control suspends all automated tasks, including environmental overrides! Disable when done!"
 
 		#here is all the objects you want in the screen
 		rec_b_main = button_img_do((self.xmax-415,15),"MS off.png",gotoscreen_Main)
@@ -1268,17 +1280,17 @@ class MCscreen(basic_screen):
 		
 		
 		b_list = [[["1",False,donothing,donothing],["2",False,donothing,donothing],["3",False,donothing,donothing]],[["4",False,donothing,donothing],["5",False,donothing,donothing],["6",False,donothing,donothing],["7",False,donothing,donothing]],[["8",False,donothing,donothing],["9",False,donothing,donothing],["0",False,donothing,donothing]],[["*",False,donothing,donothing],["#",False,donothing,donothing],["A",False,donothing,donothing],["B",False,donothing,donothing]],[["C",False,donothing,donothing],["D",False,donothing,donothing],["Reset",False,donothing,donothing]]]
-		hex_p = hex_pad((150,150),80,b_list,light_blue)
+		hex_p = hex_pad_RS((150,150),80,light_blue)
 		
-		relay_status = relay_status_bar((500,15),light_blue)
+		relay_status = relay_status_bar((500,15))
 		
-		MC_tog = button_rec_tog((800,300),(250,200),yellow,"MANUAL CONTROL",False,donothing,donothing)
+		MC_tog = button_rec_tog((800,100),(250,200),yellow,"MANUAL CONTROL",False,MC_enable,MC_disable)
 		
 		#time and date
 		rec_l_date = date_label((15,15),(100,30),light_blue)
 		rec_l_time = time_label((130,15),(100,30),light_blue)
 		
-		self.objects = [rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,hex_p,relay_status,MC_tog]
+		self.objects = [rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,relay_status,MC_tog,hex_p]
 
 
 class tempscreen(basic_screen):
@@ -1486,24 +1498,28 @@ class paasscreen(basic_screen):
 def arduino_sim(cmd_type,cmd_specific):
 	global serial_comm
 	global now_adjustment
-	global relay_state
+	global manual_control_engaged
 	if cmd_type =="get":
 		if cmd_specific == "all":
 			now = datetime.datetime.now()+now_adjustment
 			YYYY,MM,DD,HH,mm,SS= str(now.year),str(now.month),str(now.day),str(now.hour),str(now.minute),str(now.second)
-			
-			relay_state = "".join(str(randint(0,1)) for i in range(16))#generates random relay state, to be replaced with something from the ToDo list
+			if not manual_control_engaged:
+				
+				RS = "".join(str(randint(0,1)) for i in range(16))#generates random relay state, to be replaced with something from the ToDo list
+			else:
+				RS = "".join(str(int(mc_s.objects[-1].buttons[i].pressed)) for i in range(len(relay_state)))
+
 			
 			rand_temps = ["81.0","78.0","76.0","75.5","75.0","74.5","74.0","73.0","69.0","error"]
 			rand_hums = ["81.0","80.0","79.0","69.0","error"]
 			rand_TH = ":".join(choice(rand_temps)+'/'+choice(rand_hums) for i in range(num_sensors)) #picks random values from list of possibles, which include errors
 			
-			sim_data = "-".join([":".join([YYYY,MM,DD]),relay_state,rand_TH]) #putting it all together
+			sim_data = "-".join([":".join([YYYY,MM,DD,HH,mm,SS]),RS,rand_TH]) #putting it all together
 			
 			data_log.append(sim_data) #append new simulated data to the running datalog
 			
 			
-			"""
+			
 			#disabling serial logging for get all to prevent the log from being quickly flooded with entried durring development
 			serial_comm.append("Pi: <get all>") #adding stuff to the debugging log
 			if len(serial_comm) > serial_comm_max_len:
@@ -1511,7 +1527,7 @@ def arduino_sim(cmd_type,cmd_specific):
 			serial_comm.append("ArduinoSIM:"+sim_data)
 			if len(serial_comm) > serial_comm_max_len:
 				del serial_comm[0]
-				"""
+				
 	
 	elif cmd_type == "set":
 		if cmd_specific == "datetime":
@@ -1614,13 +1630,13 @@ def event_handler(event):
 	global current_screen
 	global data_log
 	global serial_comm
-
+	global manual_control_engaged
+	global relay_state
 	#events without categories must come first in the elif chain
 	if event.type == SENSOR_EVENT:
 		#eventually this will be a get-sensor-data to the arduino and sorting of the received data into individual lists and an average
 		arduino_sim("get","all")
-		new_data_set = [[7,0,0],round(triangular(65,90,75),1),round(triangular(70,100,80),1),round(triangular(65,90,75),1),round(triangular(70,100,80),1),round(triangular(65,90,75),1),round(triangular(70,100,80),1),round(triangular(65,90,75),1),round(triangular(70,100,80),1),"0000000000000000",False]
-		
+
 		#parsing the data from the last Arduino get
 		SD=data_log[-1].split('-')[2]
 		
@@ -1649,7 +1665,8 @@ def event_handler(event):
 		else:
 			data_dict["H2"]=[float(SD.split(':')[1].split('/')[1])] + data_dict["H2"]
 		
-
+		relay_state = data_log[-1].split('-')[1]
+		
 		
 		for key in data_dict:
 			if len(data_dict[key])>max_data_points:
@@ -1735,6 +1752,23 @@ def event_handler(event):
 				settings_dict["ToDo"] = sortlist(settings_dict["ToDo"])
 			save_settings()
 			current_screen = ToDo_s
+	
+	#this could be made into an if - else, but leaving explicit for clarity's sake
+	elif event.category == "manualcontrol":
+		global original_RS
+		if event == MC_enable:
+			manual_control_engaged = True
+			original_RS = ""
+			original_RS = "".join(i for i in relay_state)
+		elif event == MC_disable:
+			original_RS = ""
+			manual_control_engaged = False
+		elif event == MC_reset:
+			relay_state = "".join(i for i in original_RS)
+			for i,n in enumerate(original_RS):
+				mc_s.objects[-1].buttons[i].pressed=bool(int(n))
+			mc_s.objects[-1].buttons[-1].pressed = False
+
 
 
 
@@ -1776,4 +1810,3 @@ while True:
 
     pygame.display.flip()    
     clock.tick(60)
-
