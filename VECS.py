@@ -44,7 +44,7 @@ num_sensors = 2 #eventually number of connected sensors will be dynamic
 #max number of points to save in each small sensor reading list
 max_data_points = 100
 #dict for holdingt sensor data TE = example temp. Initialize with dummy value so that plot works on new startup?
-data_dict = {"TE":[75.0,76.0,75.5,78.0,78.5,79.0,80.0,81.0,79.2,78.9,"Error","Error",77.1,"Error",76.8],
+data_dict = {"TA":[75.0,76.0,75.5,78.0,78.5,79.0,80.0,81.0,79.2,78.9,"Error","Error",77.1,"Error",76.8],
 "T1":[],
 "H1":[],
 "T2":[],
@@ -1237,8 +1237,8 @@ class mainscreen(basic_screen):
 		
 		#graphs of tem and humidity
 		#rec_g_temp = button_rec_do((15,70),(800,400),light_blue,"temp graph",False,gotoscreen_Temp)
-		temp_graph = time_graph((15,70),(800,400),60,90,100,max_data_points,green,"Tempurature","TE")
-		humid_graph = time_graph((15,550),(800,400),60,110,100,max_data_points,light_blue,"Humidity","H1")
+		temp_graph = time_graph((15,70),(800,400),60,90,100,max_data_points,green,"Tempurature","TA")
+		humid_graph = time_graph((15,550),(800,400),60,110,100,max_data_points,light_blue,"Humidity","HA")
 		
 		#rec_g_humid = button_rec_do((15,550),(800,400),light_blue,"humidity graph",False,gotoscreen_Humid)
 		
@@ -1309,12 +1309,14 @@ class tempscreen(basic_screen):
 		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
 		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
 
+		temp_graph1 = time_graph((15,70),(800,400),60,90,100,max_data_points,green,"Tempurature","T1")
+		temp_graph2 = time_graph((15,550),(800,400),60,90,100,max_data_points,green,"Tempurature","T2")
 
 		#time and date
 		rec_l_date = date_label((15,15),(100,30),light_blue)
 		rec_l_time = time_label((130,15),(100,30),light_blue)
 		
-		self.objects = [rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time]
+		self.objects = [rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,temp_graph1,temp_graph2]
 
 
 class humidscreen(basic_screen):
@@ -1333,13 +1335,16 @@ class humidscreen(basic_screen):
 		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
 		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
 		
+		humid_graph1 = time_graph((15,70),(800,400),60,110,100,max_data_points,light_blue,"Humidity","H1")
+		humid_graph2 = time_graph((15,550),(800,400),60,110,100,max_data_points,light_blue,"Humidity","H2")
+		
 		
 		#time and date
 		rec_l_date = date_label((15,15),(100,30),light_blue)
 		rec_l_time = time_label((130,15),(100,30),light_blue)
 		
 		
-		self.objects = [rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time]
+		self.objects = [rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,humid_graph1,humid_graph2]
 
 
 class datetimescreen(basic_screen):
@@ -1494,7 +1499,10 @@ class paasscreen(basic_screen):
 
 
 """Arduino sim for coding without an actual arduino connected, and Arduino real for final version. Both should take same input and output the same format"""
-"""'YYYY:MM:DD:HH:mm:SS-0000000000000000-TT.T/HH.H:TT.T/HH.H' is the format for data obtained from the arduino"""
+"""'YYYY:MM:DD:HH:mm:SS-0000000000000000-TT.T/HH.H:TT.T/HH.H-M' is the format for data obtained from the arduino
+M is the manual control indicator bit 0 is off, 1 is MC engaged
+
+"""
 def arduino_sim(cmd_type,cmd_specific):
 	global serial_comm
 	global now_adjustment
@@ -1504,23 +1512,21 @@ def arduino_sim(cmd_type,cmd_specific):
 			now = datetime.datetime.now()+now_adjustment
 			YYYY,MM,DD,HH,mm,SS= str(now.year),str(now.month),str(now.day),str(now.hour),str(now.minute),str(now.second)
 			if not manual_control_engaged:
-				
+				MC = '0'
 				RS = "".join(str(randint(0,1)) for i in range(16))#generates random relay state, to be replaced with something from the ToDo list
 			else:
+				MC = '1'
 				RS = "".join(str(int(mc_s.objects[-1].buttons[i].pressed)) for i in range(len(relay_state)))
-
 			
 			rand_temps = ["81.0","78.0","76.0","75.5","75.0","74.5","74.0","73.0","69.0","error"]
 			rand_hums = ["81.0","80.0","79.0","69.0","error"]
 			rand_TH = ":".join(choice(rand_temps)+'/'+choice(rand_hums) for i in range(num_sensors)) #picks random values from list of possibles, which include errors
 			
-			sim_data = "-".join([":".join([YYYY,MM,DD,HH,mm,SS]),RS,rand_TH]) #putting it all together
+			sim_data = "-".join([":".join([YYYY,MM,DD,HH,mm,SS]),RS,rand_TH,MC]) #putting it all together
 			
 			data_log.append(sim_data) #append new simulated data to the running datalog
 			
-			
-			
-			#disabling serial logging for get all to prevent the log from being quickly flooded with entried durring development
+			#"serial" debugger logging
 			serial_comm.append("Pi: <get all>") #adding stuff to the debugging log
 			if len(serial_comm) > serial_comm_max_len:
 				del serial_comm[0]
@@ -1528,10 +1534,8 @@ def arduino_sim(cmd_type,cmd_specific):
 			if len(serial_comm) > serial_comm_max_len:
 				del serial_comm[0]
 				
-	
 	elif cmd_type == "set":
 		if cmd_specific == "datetime":
-
 			year = datetime_s.slide_wheel_year.dial_output
 			month = datetime_s.slide_wheel_month.dial_output.zfill(2)
 			day = datetime_s.slide_wheel_day.dial_output.zfill(2)
@@ -1641,29 +1645,59 @@ def event_handler(event):
 		SD=data_log[-1].split('-')[2]
 		
 		
-		#putting sensor readings into their appropriate sub lists for graphing. Need to generalize this based on num_sensors
-		if SD.split(':')[0].split('/')[0]=='error':
-			data_dict["TE"]=[SD.split(':')[0].split('/')[0]] + data_dict["TE"]
+		#putting sensor readings into their appropriate sub lists for graphing. Need to generalize this into a single for loop based on num_sensors
+		
+		temp_total = 0
+		hum_total = 0
+		successful_temp_reads = 0
+		successful_hum_reads = 0
+		
+		
+		
+		t1 = SD.split(':')[0].split('/')[0]
+		if t1=='error':
+			data_dict["T1"]=[t1] + data_dict["T1"]
 		else:
-			data_dict["TE"]=[float(SD.split(':')[0].split('/')[0])] + data_dict["TE"]
+			data_dict["T1"]=[float(t1)] + data_dict["T1"]
+			temp_total += float(t1)
+			successful_temp_reads +=1
+		
+		t2 = SD.split(':')[1].split('/')[0]
+		if t2=='error':
+			data_dict["T2"]=[t2] + data_dict["T2"]
+		else:
+			data_dict["T2"]=[float(t2)] + data_dict["T2"]
+			temp_total += float(t2)
+			successful_temp_reads +=1
 			
-		if SD.split(':')[0].split('/')[0]=='error':
-			data_dict["T1"]=[SD.split(':')[0].split('/')[0]] + data_dict["T1"]
+			
+		h1 = SD.split(':')[0].split('/')[1]
+		if h1=='error':
+			data_dict["H1"]=[h1] + data_dict["H1"]
 		else:
-			data_dict["T1"]=[float(SD.split(':')[0].split('/')[0])] + data_dict["T1"]
-		if SD.split(':')[0].split('/')[1]=='error':
-			data_dict["H1"]=[SD.split(':')[0].split('/')[1]] + data_dict["H1"]
+			data_dict["H1"]=[float(h1)] + data_dict["H1"]
+			hum_total += float(h1)
+			successful_hum_reads +=1
+		h2 = SD.split(':')[1].split('/')[1]
+		if h2=='error':
+			data_dict["H2"]=[h2] + data_dict["H2"]
 		else:
-			data_dict["H1"]=[float(SD.split(':')[0].split('/')[1])] + data_dict["H1"]
-
-		if SD.split(':')[1].split('/')[0]=='error':
-			data_dict["T2"]=[SD.split(':')[1].split('/')[0]] + data_dict["T2"]
+			data_dict["H2"]=[float(h2)] + data_dict["H2"]
+			hum_total += float(h2)
+			successful_hum_reads +=1
+		
+		if successful_temp_reads:
+			temp_avg = temp_total/successful_temp_reads
 		else:
-			data_dict["T2"]=[float(SD.split(':')[1].split('/')[0])] + data_dict["T2"]
-		if SD.split(':')[1].split('/')[1]=='error':
-			data_dict["H2"]=[SD.split(':')[1].split('/')[1]] + data_dict["H2"]
+			temp_avg = 'error'
+		
+		if successful_hum_reads:
+			hum_avg = hum_total/successful_hum_reads
 		else:
-			data_dict["H2"]=[float(SD.split(':')[1].split('/')[1])] + data_dict["H2"]
+			hum_avg = 'error'
+		
+		data_dict["TA"]=[temp_avg] + data_dict["TA"]
+		data_dict["HA"]=[hum_avg] + data_dict["HA"]
 		
 		relay_state = data_log[-1].split('-')[1]
 		
@@ -1676,7 +1710,7 @@ def event_handler(event):
 	elif event.category == "changescreen":
 		current_screen = screen_dict[event.screen]
 		
-	
+	#this needs to be replaced/removed. Just take the time from the get all
 	elif event.category == "timeevent":
 		
 		if event == getTime:
@@ -1810,3 +1844,4 @@ while True:
 
     pygame.display.flip()    
     clock.tick(60)
+
