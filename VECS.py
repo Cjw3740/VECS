@@ -1,10 +1,17 @@
+"""Dependancies: pygame and pyserial"""
+
+
+
+print("Vivarium Environmental Control System: V.E.C.S.")
+print("Importing stuff")
 import pygame
 from math import *  #can limit this to just the functions you need when you're closer to being done
 import datetime
 import json
 import serial
-from random import randint,triangular
+from random import randint,triangular, choice
 
+print("Initializing Pygame")
 pygame.init()
 
 screen_size_x,screen_size_y  = 1600, 1000
@@ -12,40 +19,36 @@ screen = pygame.display.set_mode((screen_size_x,screen_size_y))
 
 
 time_freq = 100 #freq for updating the time 1000 = 1sec
-sensor_freq = 2000 #get sensor val. 1000 = 1sec
+sensor_freq = 1000 #get sensor val. 1000 = 1sec, should be set to 5 sec for actual use
 
 #log of serial communications
 serial_comm = ["startup"]
 serial_comm_max_len = 30
 
-
-rawnow = datetime.datetime.now() #gets the systems version of time now
-setnow = datetime.datetime(2017, 12, 2, 6, 00, 1, 1) #default time, to be overwritten by time obtained from Arduino
-nowadjust = setnow - rawnow  #adjusted time
+print("Getting time")
+sys_now = datetime.datetime.now() #gets the systems version of time now
+set_now = datetime.datetime(2018, 9, 21, 6, 00, 1, 1) #default time, to be overwritten by time obtained from Arduino
+now_adjustment = set_now - sys_now  #adjusted time
 
 
 """Relay/ToDo stuff"""
-default_relay_state = "0000000000000000"
 relay_state = "0000000000000000"
+original_RS = ""
 relay_dict = {1:"Lights",2:"Mister",3:"Fogger 1",4:"Fogger Fan 1",5:"Fogger 2",6:"Fogger Fan 2",7:"Air Circulating Fan",8:"H20 Pump",9:"unused",10:"unused",11:"unused",12:"unused",13:"unused",14:"unused",15:"unused",16:"unused"}
-
+manual_control_engaged = False
 ToDo = []
 settings_dict = {}
+overrides = {"NN":"222222222222222",'HN':"222222222222222","CN":"222222222222222", "ND":"222222222222222", "NW":"222222222222222", "HD":"222222222222222", "HW":"222222222222222", "CD":"222222222222222", "CW":"222222222222222"}
 
 """sensor related stuff"""
-num_sensors = 2 #eventually number of connected sensors will dynamic
-#sensor data format: time, temp1, humid1, temp2, humid2.....
-#each graph will graph one sensor value (or an average)
-sample_sensor_data = [[[7,0,0],75.0,82.4,76.5,83.0],[[7,0,5],76.0,81.4,76.5,84.0],[[7,0,10],75.5,80.4,76.5,85.0],[[7,0,15],74.0,79.4,76.5,82.0]]
-sample_temp_data = [[[7,0,0],75.0],[[7,0,5],76.0],[[7,0,10],75.5],[[7,0,15],"Error"],[[7,0,0],"Error"],[[7,0,5],76.0],[[7,0,10],75.5],[[7,0,15],78.0],[[7,0,0],75.0],[[7,0,5],77.0],[[7,0,10],75.5],[[7,0,15],74.0]]
+num_sensors = 2 #eventually number of connected sensors will be dynamic
 
-#this will be the big list that holds the time, sensor, relaystate,override state. To be dumped into a save file periodically to limit size
-data_list = []
+
 
 #max number of points to save in each small sensor reading list
 max_data_points = 100
 #dict for holdingt sensor data TE = example temp. Initialize with dummy value so that plot works on new startup?
-data_dict = {"TE":[75.0,76.0,75.5,78.0,78.5,79.0,80.0,81.0,79.2,78.9,"Error","Error",77.1,"Error",76.8],
+data_dict = {"TA":[75.0,76.0,75.5,78.0,78.5,79.0,80.0,81.0,79.2,78.9,"Error","Error",77.1,"Error",76.8],
 "T1":[],
 "H1":[],
 "T2":[],
@@ -60,13 +63,27 @@ data_dict = {"TE":[75.0,76.0,75.5,78.0,78.5,79.0,80.0,81.0,79.2,78.9,"Error","Er
 override_dict = {"T":[80.0,70.5],"H":[100.0,70.0]}
 
 
+"""new sceme for handling data. Send Aurduino a 'get all' command and it shuld return date,relay state, and T/H pairs, Manual control indicator, and Override state as text in the 
+following format: 'YYYY:MM:DD:HH:mm:SS-0000000000000000-TT.T/HH.H:TT.T/HH.H-M-OR' 
+'-' deliniate the different sections, ':' different sub sections, and '/' seperated temp humidity pairs. 
+Bad sensor readings should be stored as 'error'
+Temp sensors can't give data more frequently thanonce every 2 sec, so say 5 sec between readings. This amounts to 56 bytes per reading for 2 sensors
+roughly 17,800 sensor readings for a megabyte of data, or roughly 24 hours of data collected. 
+Save every 24 hours at/near midnight.
+Override states: NN - nominal, HN - hot, CN - cold, ND - dry, NW - wet, HD -hot/dry, HW - hot/wet, CD - cold/dry, CW - cold/wet
+inbetween saves the data should be stored in the varialble 'data_log'"""
+
+data_log = []
+
+
+print("Setting up text options")
 #setting up text options (needs to be cleaned up, some use msg_obj some use font)
 pygame.font.init()  #must call this
 msg_obj = pygame.font.SysFont('New Times Roman', 30) #msg object to render, font and size
 font = pygame.font.Font(None,30)
 
 
-
+print("defining colors")
 #defining rgb colors for easy reference
 red = (255,0,0)
 green = (0,255,0)
@@ -79,7 +96,7 @@ yellow = (255,255,0)
 orange = (255,128,0)
 
 
-
+print("Setting up custom events")
 """custom events to be handled by the event handler"""
 CUSTOMEVENT = pygame.USEREVENT +1 #needs category attribute at a minimum
 gotoscreen_MC = pygame.event.Event(CUSTOMEVENT, category = 'changescreen', screen = 'MC')
@@ -100,23 +117,16 @@ ToDo_MIS = pygame.event.Event(CUSTOMEVENT, category = 'todochange', action = 'MI
 getTime = pygame.event.Event(CUSTOMEVENT, category = 'timeevent', action = 'getTime')
 setTime = pygame.event.Event(CUSTOMEVENT, category = 'timeevent', action = 'setTime')
 
+MC_enable = pygame.event.Event(CUSTOMEVENT, category = 'manualcontrol', action = 'enable')
+MC_disable = pygame.event.Event(CUSTOMEVENT, category = 'manualcontrol', action = 'disable')
+MC_reset = pygame.event.Event(CUSTOMEVENT, category = 'manualcontrol', action = 'reset')
 
 getSensorData = pygame.event.Event(CUSTOMEVENT, category = 'timeevent', action = 'getsensordata')
 
-
-
-
 donothing = pygame.event.Event(CUSTOMEVENT, category = 'donothing')
-
 
 UPDATE_TIME_EVENT = pygame.USEREVENT+2
 SENSOR_EVENT = pygame.USEREVENT+3
-
-
-
-
-
-
 
 
 
@@ -151,15 +161,15 @@ def serial_comm_start():
 
 
 def get_str_now():
-	tempnow = nowadjust + datetime.datetime.now()
+	tempnow = now_adjustment + datetime.datetime.now()
 	return tempnow.strftime("%m/%d/%y  %H:%M:%S")
 
 def get_str_time_now():
-	tempnow = nowadjust + datetime.datetime.now()
+	tempnow = now_adjustment + datetime.datetime.now()
 	return tempnow.strftime("%H:%M:%S")
 
 def get_str_date_now():
-	tempnow = nowadjust + datetime.datetime.now()
+	tempnow = now_adjustment + datetime.datetime.now()
 	return tempnow.strftime("%m/%d/%y")
 
 
@@ -212,7 +222,7 @@ def sortlist(list1):
 			del(list1[k])
 	return list1
 
-#assumes now is a list of h,m,s. Figures out whatthe current relay state should be
+#assumes now is a list of h,m,s. Figures out what the current relay state should be
 def should_be_relay_state(def_state,todolist,now):
 	rel_state = def_state
 	for task in todolist:
@@ -733,6 +743,53 @@ bl[row][col][item]
 				btn.do(event) 
 
 
+#keypad control using toggle buttons
+class hex_pad_RS():
+	global relay_state
+	
+	
+	def __init__(self,initial_point,side_len,color):
+		self.xo,self.yo = initial_point
+		self.side_len = side_len
+		self.buttons_list = [[["1",False,donothing,donothing],["2",False,donothing,donothing],["3",False,donothing,donothing]],[["4",False,donothing,donothing],["5",False,donothing,donothing],["6",False,donothing,donothing],["7",False,donothing,donothing]],[["8",False,donothing,donothing],["9",False,donothing,donothing],["0",False,donothing,donothing]],[["*",False,donothing,donothing],["#",False,donothing,donothing],["A",False,donothing,donothing],["B",False,donothing,donothing]],[["C",False,donothing,donothing],["D",False,donothing,donothing],["Reset",False,donothing,donothing]]]
+		self.rows = int(len(self.buttons_list))
+		self.cols_list = [int(len(self.buttons_list[i])) for i in range(self.rows)]
+		self.color = color
+		self.hx = int(self.side_len * (sqrt(3))/2)
+		self.hy = int(self.side_len/2)
+		self.points = ((self.xo-int(1.5*self.hx),self.yo-self.hy),(self.xo+4*max(self.cols_list)*self.hx,self.yo-self.hy),(self.xo+2*max(self.cols_list)*self.hx,self.yo+5*self.hy*self.rows),(self.xo-self.hx,self.yo+5*self.hy*self.rows))
+		self.buttons = []
+		
+		for j in range(self.rows):
+			for i in range(len(self.buttons_list[j])):
+				self.buttons.append(button_hex_tog((self.xo+int(2.2*i*self.hx)-int(1.12*(j%2)*self.hx),self.yo+int(3.3*j*self.hy)),self.side_len,self.color,self.buttons_list[j][i][0],self.buttons_list[j][i][1],self.buttons_list[j][i][2],self.buttons_list[j][i][3]))
+		
+		self.buttons[-1].do_pressed = MC_reset
+		
+	def draw(self):
+		for i,key in enumerate(self.buttons):
+			if i < len(relay_state):
+				key.pressed = int(relay_state[i])
+			key.draw()
+	
+	#why does draw work without relay_state being declared global in it but do does not?
+	def do(self,event):
+		global relay_state
+		if event.type == UPDATE_TIME_EVENT:
+			self.draw()
+		mouse_pos_x,mouse_pos_y = pygame.mouse.get_pos()
+		for btn in self.buttons:
+			if inside_polygon(mouse_pos_x, mouse_pos_y,btn.points):
+				btn.do(event) 
+		
+		if manual_control_engaged:
+			relay_state = "".join(str(int(self.buttons[i].pressed)) for i in range(len(relay_state)))
+			
+
+
+
+
+
 class time_label():
 	def __init__(self,loc,size,color):
 		self.loc = loc
@@ -758,6 +815,11 @@ class time_label():
 	def do(self,event):
 		if event.type == UPDATE_TIME_EVENT:
 			self.draw()
+
+
+
+
+
 
 
 """example button list: 
@@ -836,6 +898,39 @@ class date_label():
 	def do(self,event):
 		if event.type == UPDATE_TIME_EVENT:
 			self.draw()
+			
+
+
+class sensor_label():
+	def __init__(self,loc,size,color,label,target):
+		self.loc = loc
+		self.size = size
+		self.color = color
+		self.dx,self.dy = size
+		self.x1 = loc[0]
+		self.y1 = loc[1]
+		self.x2 = self.x1 + size[0]
+		self.y2 = self.y1 +size[1]
+		self.points = ((self.x1,self.y1),(self.x2,self.y1),(self.x1,self.y2),(self.x2,self.y2))
+		self.target = target
+		self.label = label
+		
+
+	def draw(self):
+		pygame.draw.rect(screen,black, pygame.Rect((self.x1,self.y1,self.dx,self.dy)))
+		pygame.draw.rect(screen,self.color, pygame.Rect((self.x1,self.y1,self.dx,self.dy)),1)
+		if len(data_dict[self.target]):
+			self.text = self.label + ': ' + str(data_dict[self.target][0])
+		else: 
+			self.text = "0"
+		self.txt_loc = (self.x1 + self.dx/2 - font.size(self.text)[0]/2,self.y1 + self.dy/2 - font.size(self.text)[1]/2)
+		txt = msg_obj.render(self.text,True, self.color, black)
+		
+		screen.blit(txt,self.txt_loc)
+		
+	def do(self,event):
+		if event.type == UPDATE_TIME_EVENT:
+			self.draw()
 
 #need tomake img dependant on status and add nonrotating word in middle
 class rot_image_button():
@@ -896,7 +991,7 @@ class text_label():
 #graphing util - in progress
 #x tics define how many points to graph
 class time_graph():
-	global sample_temp_data
+
 	def __init__(self,position,size,min_val,max_val,t_range,x_tics,color,title,target):
 		self.x1,self.y1 = position
 		self.x2, self.y2 = position[0]+size[0],position[1]+size[1]
@@ -930,7 +1025,7 @@ class time_graph():
 	def plot(self):
 		
 		pygame.draw.rect(screen,black, pygame.Rect((self.x1+1,self.y1+1,self.dx-2,self.dy-2)),0) #blacks out graph area
-		pygame.draw.rect(screen,black, pygame.Rect((self.x2+1,self.y1-16,80,self.dy+32)),0) #blacks out area to right of graph
+		pygame.draw.rect(screen,black, pygame.Rect((self.x2+1,self.y1-16,85,self.dy+32)),0) #blacks out area to right of graph, currently seperate to make it clear, should ultimatly be combined with above line
 		
 		#draws y axis tick marks
 		for i in range(round(self.min_val),round(self.max_val),1):
@@ -955,14 +1050,14 @@ class time_graph():
 				
 				pygame.draw.line(screen,self.color,(self.x2-i*self.dt-2,self.mv(self.data[i])),(self.x2-(i+1)*self.dt-1,self.mv(self.data[i+1])),1)
 		#high override
-		pygame.draw.polygon(screen, red, ((self.x2+2,self.mv(self.h_ov)),(self.x2+17,self.mv(self.h_ov)-15),(self.x2+17,self.mv(self.h_ov)+15)),1)
-		pygame.draw.polygon(screen, red, ((self.x2+20,self.mv(self.h_ov)-15),(self.x2+20,self.mv(self.h_ov)+15),(self.x2+70,self.mv(self.h_ov)+15),(self.x2+70,self.mv(self.h_ov)-15)),1)
+		pygame.draw.polygon(screen, red, ((self.x2+2,self.mv(self.h_ov)),(self.x2+17,self.mv(self.h_ov)-15),(self.x2+17,self.mv(self.h_ov)+15)),1) #triabgle
+		pygame.draw.polygon(screen, red, ((self.x2+20,self.mv(self.h_ov)-15),(self.x2+20,self.mv(self.h_ov)+15),(self.x2+85,self.mv(self.h_ov)+15),(self.x2+85,self.mv(self.h_ov)-15)),1) #box
 		data_txt = msg_obj.render(str(self.h_ov),False, red, black)
 		txt_loc =  (self.x2+27,self.mv(self.h_ov)-11)
 		screen.blit(data_txt,txt_loc)
 		#low override
 		pygame.draw.polygon(screen, blue, ((self.x2+2,self.mv(self.l_ov)),(self.x2+17,self.mv(self.l_ov)-15),(self.x2+17,self.mv(self.l_ov)+15)),1)
-		pygame.draw.polygon(screen, blue, ((self.x2+20,self.mv(self.l_ov)-15),(self.x2+20,self.mv(self.l_ov)+15),(self.x2+70,self.mv(self.l_ov)+15),(self.x2+70,self.mv(self.l_ov)-15)),1)
+		pygame.draw.polygon(screen, blue, ((self.x2+20,self.mv(self.l_ov)-15),(self.x2+20,self.mv(self.l_ov)+15),(self.x2+85,self.mv(self.l_ov)+15),(self.x2+85,self.mv(self.l_ov)-15)),1)
 		data_txt = msg_obj.render(str(self.l_ov),False, blue, black)
 		txt_loc =  (self.x2+27,self.mv(self.l_ov)-11)
 		screen.blit(data_txt,txt_loc)
@@ -970,8 +1065,10 @@ class time_graph():
 		
 		if len(self.data)>=1: #draws the most current reading
 			pygame.draw.polygon(screen, white, ((self.x2+2,self.mv(self.data[0])),(self.x2+17,self.mv(self.data[0])-15),(self.x2+17,self.mv(self.data[0])+15)),1)
-			pygame.draw.polygon(screen, white, ((self.x2+20,self.mv(self.data[0])-15),(self.x2+20,self.mv(self.data[0])+15),(self.x2+70,self.mv(self.data[0])+15),(self.x2+70,self.mv(self.data[0])-15)),1)
-			if self.data[0] >= self.h_ov:
+			pygame.draw.polygon(screen, white, ((self.x2+20,self.mv(self.data[0])-15),(self.x2+20,self.mv(self.data[0])+15),(self.x2+85,self.mv(self.data[0])+15),(self.x2+85,self.mv(self.data[0])-15)),1)
+			if self.data[0] == 'error':
+				txt_col = yellow
+			elif self.data[0] >= self.h_ov:
 				txt_col = red
 			elif self.data[0] <= self.l_ov:
 				txt_col = blue
@@ -1007,7 +1104,7 @@ class debug_window():
 	def __init__(self,pos,ser_com):
 		self.x1,self.y1 = pos
 		self.data = ser_com
-		self.x2,self.y2 = (self.x1+400,self.y1+((serial_comm_max_len+1)*font.size("Example")[1]))
+		self.x2,self.y2 = (self.x1+700,self.y1+((serial_comm_max_len+1)*font.size("Example")[1]))
 		self.dx = self.x2-self.x1
 		self.dy = self.y2-self.y1
 		self.points = ((self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2))
@@ -1091,11 +1188,11 @@ class ToDo_window():
 #specifically designed for a 16 relay setup
 class relay_status_bar():
 	global relay_state
-	def __init__(self,pos,color):
+	def __init__(self,pos):
 		self.x1,self.y1 = pos
 		self.r = 10
 		self.spacing = 5
-		self.color = color
+		self.color = light_blue
 		self.x2,self.y2 = pos[0]+(32*self.r)+(17*self.spacing),pos[1]+2*(self.r+self.spacing)
 		self.relay_bool = []
 		self.dx = self.x2-self.x1
@@ -1103,15 +1200,21 @@ class relay_status_bar():
 		self.points = ((self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2))
 		
 	def draw(self):
+		global manual_control_engaged
+		if manual_control_engaged:
+			self.color = yellow
+		else:
+			self.color = light_blue
 		pygame.draw.rect(screen,black, pygame.Rect((self.x1,self.y1,self.dx,self.dy)))
-		pygame.draw.rect(screen,light_blue, pygame.Rect((self.x1,self.y1,self.dx,self.dy)),1)
+		pygame.draw.rect(screen,self.color, pygame.Rect((self.x1,self.y1,self.dx,self.dy)),1)
 		self.relay_bool = []
 		for i in range(len(relay_state)):
 			pygame.draw.circle(screen,self.color,(self.x1+self.r+self.spacing+i*(2*self.r+self.spacing),self.y1+self.r+self.spacing),self.r,not int(relay_state[i]))
 			
 		
 	def do(self,event):
-		pass
+		if event.type == UPDATE_TIME_EVENT:
+			self.draw()
 
 
 
@@ -1160,8 +1263,10 @@ class mainscreen(basic_screen):
 		
 		#graphs of tem and humidity
 		#rec_g_temp = button_rec_do((15,70),(800,400),light_blue,"temp graph",False,gotoscreen_Temp)
-		temp_graph = time_graph((15,70),(800,400),60,90,100,max_data_points,green,"Tempurature","TE")
-		humid_graph = time_graph((15,550),(800,400),60,110,100,max_data_points,light_blue,"Humidity","H1")
+		ta_label = text_label((300,60),(200,30),"Average Temp",light_blue)
+		temp_graph = time_graph((15,100),(800,400),60,90,100,max_data_points,green,"Tempurature","TA")
+		ha_label = text_label((300,540),(200,30),"Average Humidity",light_blue)
+		humid_graph = time_graph((15,580),(800,400),60,110,100,max_data_points,light_blue,"Humidity","HA")
 		
 		#rec_g_humid = button_rec_do((15,550),(800,400),light_blue,"humidity graph",False,gotoscreen_Humid)
 		
@@ -1169,7 +1274,10 @@ class mainscreen(basic_screen):
 		rec_l_date = date_label((15,15),(100,30),light_blue)
 		rec_l_time = time_label((130,15),(100,30),light_blue)
 		
-		relay_status = relay_status_bar((500,15),light_blue)
+		rec_l_temp = sensor_label((250,15),(200,30),light_blue,"Temperature","TA")
+		rec_l_hum = sensor_label((950,15),(200,30),light_blue,"Humidity","TA")
+		
+		relay_status = relay_status_bar((500,15))
 		
 		#rotating status display
 		rot_b_status = rot_image_button((self.xmax-300,self.ymax-300),"green_gear.png",1,donothing)
@@ -1179,7 +1287,7 @@ class mainscreen(basic_screen):
 		
 		
 		#only objects in this list will be active (drawn)
-		self.objects = [relay_status,humid_graph,temp_graph,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,rot_b_status]
+		self.objects = [ha_label,ta_label,relay_status,humid_graph,temp_graph,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,rot_b_status,rec_l_temp,rec_l_hum]
 		
 		#only include this for first screen too be drawn
 		self.draw()
@@ -1190,7 +1298,7 @@ class MCscreen(basic_screen):
 		self.xmax = screen_size_x
 		self.ymax = screen_size_y
 		self.name = "Manual Control"
-		
+		self.warning = "*WARNING* Enabling manual control suspends all automated tasks, including environmental overrides! Disable when done!"
 
 		#here is all the objects you want in the screen
 		rec_b_main = button_img_do((self.xmax-415,15),"MS off.png",gotoscreen_Main)
@@ -1203,16 +1311,22 @@ class MCscreen(basic_screen):
 		
 		
 		b_list = [[["1",False,donothing,donothing],["2",False,donothing,donothing],["3",False,donothing,donothing]],[["4",False,donothing,donothing],["5",False,donothing,donothing],["6",False,donothing,donothing],["7",False,donothing,donothing]],[["8",False,donothing,donothing],["9",False,donothing,donothing],["0",False,donothing,donothing]],[["*",False,donothing,donothing],["#",False,donothing,donothing],["A",False,donothing,donothing],["B",False,donothing,donothing]],[["C",False,donothing,donothing],["D",False,donothing,donothing],["Reset",False,donothing,donothing]]]
-		hex_p = hex_pad((70,135),55,b_list,light_blue)
+		hex_p = hex_pad_RS((150,150),80,light_blue)
 		
+		relay_status = relay_status_bar((500,15))
 		
-		
+		MC_tog = button_rec_tog((800,100),(250,200),yellow,"MANUAL CONTROL",False,MC_enable,MC_disable)
 		
 		#time and date
 		rec_l_date = date_label((15,15),(100,30),light_blue)
 		rec_l_time = time_label((130,15),(100,30),light_blue)
 		
-		self.objects = [rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,hex_p]
+		rec_l_temp = sensor_label((250,15),(200,30),light_blue,"Temperature","TA")
+		rec_l_hum = sensor_label((950,15),(200,30),light_blue,"Humidity","TA")
+		
+		
+		
+		self.objects = [rec_l_hum,rec_l_temp,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,relay_status,MC_tog,hex_p]
 
 
 class tempscreen(basic_screen):
@@ -1230,13 +1344,22 @@ class tempscreen(basic_screen):
 		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",gotoscreen_ToDo)
 		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
 		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
-
+		
+		#Temp graphs. Need labels, and hight should depend on number of sensors and screensize: hight=(screenY-2*top/bottombuffer-2inbetweenbuffer)/(num_sensors+1)
+		ta_label = text_label((300,60),(200,30),"Average Temp",light_blue)
+		temp_graphA = time_graph((15,100),(800,220),60,90,100,max_data_points,green,"Tempurature","TA")
+		t1_label = text_label((300,380),(200,30),"Temp Sensor 1",light_blue)
+		temp_graph1 = time_graph((15,420),(800,220),60,90,100,max_data_points,green,"Tempurature","T1")
+		t2_label = text_label((300,700),(200,30),"Temp Sensor 2",light_blue)
+		temp_graph2 = time_graph((15,740),(800,220),60,90,100,max_data_points,green,"Tempurature","T2")
 
 		#time and date
 		rec_l_date = date_label((15,15),(100,30),light_blue)
 		rec_l_time = time_label((130,15),(100,30),light_blue)
 		
-		self.objects = [rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time]
+		relay_status = relay_status_bar((500,15))
+		
+		self.objects = [rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,t1_label,temp_graph1,t2_label,temp_graph2,ta_label,temp_graphA,relay_status]
 
 
 class humidscreen(basic_screen):
@@ -1256,12 +1379,22 @@ class humidscreen(basic_screen):
 		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
 		
 		
+		ha_label = text_label((300,60),(200,30),"Average Humidity",light_blue)
+		humid_graphA = time_graph((15,100),(800,220),60,110,100,max_data_points,light_blue,"Humidity","HA")
+		h1_label = text_label((300,380),(200,30),"Humidity Sensor 1",light_blue)
+		humid_graph1 = time_graph((15,420),(800,220),60,110,100,max_data_points,light_blue,"Humidity","H1")
+		h2_label = text_label((300,700),(200,30),"Humidity Sensor 2",light_blue)
+		humid_graph2 = time_graph((15,740),(800,220),60,110,100,max_data_points,light_blue,"Humidity","H2")
+		
+		
 		#time and date
 		rec_l_date = date_label((15,15),(100,30),light_blue)
 		rec_l_time = time_label((130,15),(100,30),light_blue)
 		
+		relay_status = relay_status_bar((500,15))
 		
-		self.objects = [rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time]
+		
+		self.objects = [rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,humid_graph1,humid_graph2,humid_graphA,ha_label,h1_label,h2_label,relay_status]
 
 
 class datetimescreen(basic_screen):
@@ -1415,6 +1548,118 @@ class paasscreen(basic_screen):
 
 
 
+"""Arduino sim for coding without an actual arduino connected, and Arduino real for final version. Both should take same input and output the same format"""
+"""'YYYY:MM:DD:HH:mm:SS-0000000000000000-TT.T/HH.H:TT.T/HH.H-M' is the format for data obtained from the arduino
+M is the manual control indicator bit 0 is off, 1 is MC engaged
+
+"""
+def arduino_sim(cmd_type,cmd_specific):
+	global serial_comm
+	global now_adjustment
+	global manual_control_engaged
+	if cmd_type =="get":
+		if cmd_specific == "all":
+			now = datetime.datetime.now()+now_adjustment
+			YYYY,MM,DD,HH,mm,SS= str(now.year),str(now.month),str(now.day),str(now.hour),str(now.minute),str(now.second)
+			if not manual_control_engaged:
+				MC = '0'
+				RS = "".join(str(randint(0,1)) for i in range(16))#generates random relay state, to be replaced with something from the ToDo list
+			else:
+				MC = '1'
+				RS = "".join(str(int(mc_s.objects[-1].buttons[i].pressed)) for i in range(len(relay_state)))
+			
+			rand_temps = ["81.0","78.0","76.0","75.5","75.0","74.5","74.0","73.0","69.0","error"]
+			rand_hums = ["81.0","80.0","79.0","69.0","error"]
+			rand_TH = ":".join(choice(rand_temps)+'/'+choice(rand_hums) for i in range(num_sensors)) #picks random values from list of possibles, which include errors
+			
+			sim_data = "-".join([":".join([YYYY,MM,DD,HH,mm,SS]),RS,rand_TH,MC]) #putting it all together
+			
+			data_log.append(sim_data) #append new simulated data to the running datalog
+			
+			#"serial" debugger logging
+			serial_comm.append("Pi: <get all>") #adding stuff to the debugging log
+			if len(serial_comm) > serial_comm_max_len:
+				del serial_comm[0]
+			serial_comm.append("ArduinoSIM:"+sim_data)
+			if len(serial_comm) > serial_comm_max_len:
+				del serial_comm[0]
+				
+	elif cmd_type == "set":
+		if cmd_specific == "datetime":
+			year = datetime_s.slide_wheel_year.dial_output
+			month = datetime_s.slide_wheel_month.dial_output.zfill(2)
+			day = datetime_s.slide_wheel_day.dial_output.zfill(2)
+			hour = datetime_s.slide_wheel_hour.dial_output.zfill(2)
+			minute = datetime_s.slide_wheel_minute.dial_output.zfill(2)
+			second = datetime_s.slide_wheel_second.dial_output.zfill(2)
+			send_string = "<settime:"+year+":"+month+":"+day+":"+hour+":"+minute+":"+second+">"
+			
+			set_now = datetime.datetime(int(year), int(month), int(day), int(hour), int(minute), int(second), 0) #default time, to be overwritten by time obtained from Arduino
+			now_adjustment = set_now - sys_now  #adjusted time
+			
+			serial_comm.append("ArduinoSIM:" + send_string)
+			#set date time simulation
+		elif cmd_specific == "overrides":
+			pass
+			#set overrides simulation
+		elif cmd_specific == "manualcontrol":
+			pass
+			#manual controll true or false
+		elif cmd_specific == "relaystate":
+			pass
+			#should only have effect if mannual control is true
+	
+	elif cmd_type == "establish":
+		serial_comm.append("serial comm sucessfull")
+		#establish serial comms simulation
+
+
+def arduino_real(cmd_type,cmd_specific):
+
+	if cmd_type =="get":
+		if cmd_specific == "datetime":
+			pass
+			#get time and date 
+		elif cmd_specific == "sensordata":
+			pass
+			#get sensor data 
+		elif cmd_specific == "relaystate":
+			pass
+			#get relay state 
+	
+	elif cmd_type == "set":
+		if cmd_specific == "datetime":
+			year = datetime_s.slide_wheel_year.dial_output
+			month = datetime_s.slide_wheel_month.dial_output.zfill(2)
+			day = datetime_s.slide_wheel_day.dial_output.zfill(2)
+			hour = datetime_s.slide_wheel_hour.dial_output.zfill(2)
+			minute = datetime_s.slide_wheel_minute.dial_output.zfill(2)
+			second = datetime_s.slide_wheel_second.dial_output.zfill(2)
+			send_string = "<settime:"+year+":"+month+":"+day+":"+hour+":"+minute+":"+second+">"
+			
+			try:
+				serial_send(send_string)
+			except:
+				serial_comm.append("set time failed")
+				
+			#set date time and return the same data
+		elif cmd_specific == "overrides":
+			pass
+			#set overrides 
+		elif cmd_specific == "manualcontrol":
+			pass
+			#manual controll true or false
+		elif cmd_specific == "relaystate":
+			pass
+			#should only have effect if mannual control is true
+	
+	elif cmd_type == "establish":
+		serial_comm_start()
+		#establish serial comms 
+
+
+
+
 #initialize screens and therefore their objects
 main_s = mainscreen()
 mc_s = MCscreen()
@@ -1437,24 +1682,75 @@ current_screen = main_s
 """EVENT HANDLER"""
 def event_handler(event):
 	global current_screen
-	global sample_temp_data
+	global data_log
 	global serial_comm
-	global data_list
+	global manual_control_engaged
+	global relay_state
 	#events without categories must come first in the elif chain
 	if event.type == SENSOR_EVENT:
 		#eventually this will be a get-sensor-data to the arduino and sorting of the received data into individual lists and an average
-		new_data_set = [[7,0,0],round(triangular(65,90,75),1),round(triangular(70,100,80),1),round(triangular(65,90,75),1),round(triangular(70,100,80),1),round(triangular(65,90,75),1),round(triangular(70,100,80),1),round(triangular(65,90,75),1),round(triangular(70,100,80),1),"0000000000000000",False]
-		data_list = new_data_set + data_list
+		arduino_sim("get","all")
+
+		#parsing the data from the last Arduino get
+		SD=data_log[-1].split('-')[2]
 		
-		data_dict["TE"]=[new_data_set[1]] + data_dict["TE"]
-		data_dict["T1"]=[new_data_set[2]] + data_dict["T1"]
-		data_dict["H1"]=[new_data_set[3]] + data_dict["H1"]
-		data_dict["T2"]=[new_data_set[4]] + data_dict["T2"]
-		data_dict["H2"]=[new_data_set[5]] + data_dict["H2"]
-		data_dict["T3"]=[new_data_set[6]] + data_dict["T3"]
-		data_dict["H3"]=[new_data_set[7]] + data_dict["H3"]
-		data_dict["T4"]=[new_data_set[8]] + data_dict["T4"]
-		data_dict["H4"]=[new_data_set[9]] + data_dict["H4"]
+		
+		#putting sensor readings into their appropriate sub lists for graphing. Need to generalize this into a single for loop based on num_sensors
+		
+		temp_total = 0
+		hum_total = 0
+		successful_temp_reads = 0
+		successful_hum_reads = 0
+		
+		
+		
+		t1 = SD.split(':')[0].split('/')[0]
+		if t1=='error':
+			data_dict["T1"]=[t1] + data_dict["T1"]
+		else:
+			data_dict["T1"]=[float(t1)] + data_dict["T1"]
+			temp_total += float(t1)
+			successful_temp_reads +=1
+		
+		t2 = SD.split(':')[1].split('/')[0]
+		if t2=='error':
+			data_dict["T2"]=[t2] + data_dict["T2"]
+		else:
+			data_dict["T2"]=[float(t2)] + data_dict["T2"]
+			temp_total += float(t2)
+			successful_temp_reads +=1
+			
+			
+		h1 = SD.split(':')[0].split('/')[1]
+		if h1=='error':
+			data_dict["H1"]=[h1] + data_dict["H1"]
+		else:
+			data_dict["H1"]=[float(h1)] + data_dict["H1"]
+			hum_total += float(h1)
+			successful_hum_reads +=1
+		h2 = SD.split(':')[1].split('/')[1]
+		if h2=='error':
+			data_dict["H2"]=[h2] + data_dict["H2"]
+		else:
+			data_dict["H2"]=[float(h2)] + data_dict["H2"]
+			hum_total += float(h2)
+			successful_hum_reads +=1
+		
+		if successful_temp_reads:
+			temp_avg = temp_total/successful_temp_reads
+		else:
+			temp_avg = 'error'
+		
+		if successful_hum_reads:
+			hum_avg = hum_total/successful_hum_reads
+		else:
+			hum_avg = 'error'
+		
+		data_dict["TA"]=[temp_avg] + data_dict["TA"]
+		data_dict["HA"]=[hum_avg] + data_dict["HA"]
+		
+		relay_state = data_log[-1].split('-')[1]
+		
 		
 		for key in data_dict:
 			if len(data_dict[key])>max_data_points:
@@ -1463,9 +1759,8 @@ def event_handler(event):
 		
 	elif event.category == "changescreen":
 		current_screen = screen_dict[event.screen]
-	
-
-	
+		
+	#this needs to be replaced/removed. Just take the time from the get all
 	elif event.category == "timeevent":
 		
 		if event == getTime:
@@ -1476,18 +1771,20 @@ def event_handler(event):
 				serial_send("<date>")
 				rec_date_data = serial_recieve()
 				Y,M,D,H,m,S,MS = [int(x) for x in rec_date_data[0:-1].split(".")[::-1]+rec_time_data[0:-1].split(":")+[1]] #converting what was received from arduino into a list of Year,month,day,hour,min,sec,milisec
-				global rawnow
-				global setnow
-				global nowadjust
-				rawnow = datetime.datetime.now() #gets the systems version of time now
-				setnow = datetime.datetime(Y,M,D,H,m,S,MS) #time to manually set your time to
-				nowadjust = setnow - rawnow
+				global sys_now
+				global set_now
+				global now_adjustment
+				sys_now = datetime.datetime.now() #gets the systems version of time now
+				set_now = datetime.datetime(Y,M,D,H,m,S,MS) #time to manually set your time to
+				now_adjustment = set_now - sys_now
 			except:
 				serial_comm.append("get time failed")
 				
 
 		elif event == setTime:
-			
+		
+			arduino_sim("set","datetime")
+			"""
 			year = datetime_s.slide_wheel_year.dial_output
 			month = datetime_s.slide_wheel_month.dial_output.zfill(2)
 			day = datetime_s.slide_wheel_day.dial_output.zfill(2)
@@ -1500,6 +1797,7 @@ def event_handler(event):
 				serial_send(send_string)
 			except:
 				serial_comm.append("set time failed")
+			"""
 	
 	elif event.category == "todochange":
 		
@@ -1538,6 +1836,23 @@ def event_handler(event):
 				settings_dict["ToDo"] = sortlist(settings_dict["ToDo"])
 			save_settings()
 			current_screen = ToDo_s
+	
+	#this could be made into an if - else, but leaving explicit for clarity's sake
+	elif event.category == "manualcontrol":
+		global original_RS
+		if event == MC_enable:
+			manual_control_engaged = True
+			original_RS = ""
+			original_RS = "".join(i for i in relay_state)
+		elif event == MC_disable:
+			original_RS = ""
+			manual_control_engaged = False
+		elif event == MC_reset:
+			relay_state = "".join(i for i in original_RS)
+			for i,n in enumerate(original_RS):
+				mc_s.objects[-1].buttons[i].pressed=bool(int(n))
+			mc_s.objects[-1].buttons[-1].pressed = False
+
 
 
 
@@ -1579,3 +1894,4 @@ while True:
 
     pygame.display.flip()    
     clock.tick(60)
+
