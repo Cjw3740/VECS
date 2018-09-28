@@ -1,3 +1,7 @@
+"""Dependancies: pygame and pyserial"""
+
+
+
 print("Vivarium Environmental Control System: V.E.C.S.")
 print("Importing stuff")
 import pygame
@@ -28,13 +32,13 @@ now_adjustment = set_now - sys_now  #adjusted time
 
 
 """Relay/ToDo stuff"""
-default_relay_state = "0000000000000000"
 relay_state = "0000000000000000"
 original_RS = ""
 relay_dict = {1:"Lights",2:"Mister",3:"Fogger 1",4:"Fogger Fan 1",5:"Fogger 2",6:"Fogger Fan 2",7:"Air Circulating Fan",8:"H20 Pump",9:"unused",10:"unused",11:"unused",12:"unused",13:"unused",14:"unused",15:"unused",16:"unused"}
 manual_control_engaged = False
 ToDo = []
 settings_dict = {}
+overrides = {"NN":"222222222222222",'HN':"222222222222222","CN":"222222222222222", "ND":"222222222222222", "NW":"222222222222222", "HD":"222222222222222", "HW":"222222222222222", "CD":"222222222222222", "CW":"222222222222222"}
 
 """sensor related stuff"""
 num_sensors = 2 #eventually number of connected sensors will be dynamic
@@ -59,18 +63,17 @@ data_dict = {"TA":[75.0,76.0,75.5,78.0,78.5,79.0,80.0,81.0,79.2,78.9,"Error","Er
 override_dict = {"T":[80.0,70.5],"H":[100.0,70.0]}
 
 
-"""new sceme for handling data. Send Aurduino a 'get all' command and it shuld return date,relay state, and T/H pairs as text in the 
-following format: 'YYYY:MM:DD:HH:mm:SS-0000000000000000-TT.T/HH.H:TT.T/HH.H' 
+"""new sceme for handling data. Send Aurduino a 'get all' command and it shuld return date,relay state, and T/H pairs, Manual control indicator, and Override state as text in the 
+following format: 'YYYY:MM:DD:HH:mm:SS-0000000000000000-TT.T/HH.H:TT.T/HH.H-M-OR' 
 '-' deliniate the different sections, ':' different sub sections, and '/' seperated temp humidity pairs. 
 Bad sensor readings should be stored as 'error'
 Temp sensors can't give data more frequently thanonce every 2 sec, so say 5 sec between readings. This amounts to 56 bytes per reading for 2 sensors
 roughly 17,800 sensor readings for a megabyte of data, or roughly 24 hours of data collected. 
 Save every 24 hours at/near midnight.
+Override states: NN - nominal, HN - hot, CN - cold, ND - dry, NW - wet, HD -hot/dry, HW - hot/wet, CD - cold/dry, CW - cold/wet
 inbetween saves the data should be stored in the varialble 'data_log'"""
 
 data_log = []
-
-
 
 
 print("Setting up text options")
@@ -120,20 +123,10 @@ MC_reset = pygame.event.Event(CUSTOMEVENT, category = 'manualcontrol', action = 
 
 getSensorData = pygame.event.Event(CUSTOMEVENT, category = 'timeevent', action = 'getsensordata')
 
-
-
-
 donothing = pygame.event.Event(CUSTOMEVENT, category = 'donothing')
-
 
 UPDATE_TIME_EVENT = pygame.USEREVENT+2
 SENSOR_EVENT = pygame.USEREVENT+3
-
-
-
-
-
-
 
 
 
@@ -229,7 +222,7 @@ def sortlist(list1):
 			del(list1[k])
 	return list1
 
-#assumes now is a list of h,m,s. Figures out whatthe current relay state should be
+#assumes now is a list of h,m,s. Figures out what the current relay state should be
 def should_be_relay_state(def_state,todolist,now):
 	rel_state = def_state
 	for task in todolist:
@@ -905,6 +898,39 @@ class date_label():
 	def do(self,event):
 		if event.type == UPDATE_TIME_EVENT:
 			self.draw()
+			
+
+
+class sensor_label():
+	def __init__(self,loc,size,color,label,target):
+		self.loc = loc
+		self.size = size
+		self.color = color
+		self.dx,self.dy = size
+		self.x1 = loc[0]
+		self.y1 = loc[1]
+		self.x2 = self.x1 + size[0]
+		self.y2 = self.y1 +size[1]
+		self.points = ((self.x1,self.y1),(self.x2,self.y1),(self.x1,self.y2),(self.x2,self.y2))
+		self.target = target
+		self.label = label
+		
+
+	def draw(self):
+		pygame.draw.rect(screen,black, pygame.Rect((self.x1,self.y1,self.dx,self.dy)))
+		pygame.draw.rect(screen,self.color, pygame.Rect((self.x1,self.y1,self.dx,self.dy)),1)
+		if len(data_dict[self.target]):
+			self.text = self.label + ': ' + str(data_dict[self.target][0])
+		else: 
+			self.text = "0"
+		self.txt_loc = (self.x1 + self.dx/2 - font.size(self.text)[0]/2,self.y1 + self.dy/2 - font.size(self.text)[1]/2)
+		txt = msg_obj.render(self.text,True, self.color, black)
+		
+		screen.blit(txt,self.txt_loc)
+		
+	def do(self,event):
+		if event.type == UPDATE_TIME_EVENT:
+			self.draw()
 
 #need tomake img dependant on status and add nonrotating word in middle
 class rot_image_button():
@@ -1237,14 +1263,19 @@ class mainscreen(basic_screen):
 		
 		#graphs of tem and humidity
 		#rec_g_temp = button_rec_do((15,70),(800,400),light_blue,"temp graph",False,gotoscreen_Temp)
-		temp_graph = time_graph((15,70),(800,400),60,90,100,max_data_points,green,"Tempurature","TA")
-		humid_graph = time_graph((15,550),(800,400),60,110,100,max_data_points,light_blue,"Humidity","HA")
+		ta_label = text_label((300,60),(200,30),"Average Temp",light_blue)
+		temp_graph = time_graph((15,100),(800,400),60,90,100,max_data_points,green,"Tempurature","TA")
+		ha_label = text_label((300,540),(200,30),"Average Humidity",light_blue)
+		humid_graph = time_graph((15,580),(800,400),60,110,100,max_data_points,light_blue,"Humidity","HA")
 		
 		#rec_g_humid = button_rec_do((15,550),(800,400),light_blue,"humidity graph",False,gotoscreen_Humid)
 		
 		#time and date
 		rec_l_date = date_label((15,15),(100,30),light_blue)
 		rec_l_time = time_label((130,15),(100,30),light_blue)
+		
+		rec_l_temp = sensor_label((250,15),(200,30),light_blue,"Temperature","TA")
+		rec_l_hum = sensor_label((950,15),(200,30),light_blue,"Humidity","TA")
 		
 		relay_status = relay_status_bar((500,15))
 		
@@ -1256,7 +1287,7 @@ class mainscreen(basic_screen):
 		
 		
 		#only objects in this list will be active (drawn)
-		self.objects = [relay_status,humid_graph,temp_graph,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,rot_b_status]
+		self.objects = [ha_label,ta_label,relay_status,humid_graph,temp_graph,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,rot_b_status,rec_l_temp,rec_l_hum]
 		
 		#only include this for first screen too be drawn
 		self.draw()
@@ -1290,7 +1321,12 @@ class MCscreen(basic_screen):
 		rec_l_date = date_label((15,15),(100,30),light_blue)
 		rec_l_time = time_label((130,15),(100,30),light_blue)
 		
-		self.objects = [rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,relay_status,MC_tog,hex_p]
+		rec_l_temp = sensor_label((250,15),(200,30),light_blue,"Temperature","TA")
+		rec_l_hum = sensor_label((950,15),(200,30),light_blue,"Humidity","TA")
+		
+		
+		
+		self.objects = [rec_l_hum,rec_l_temp,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,relay_status,MC_tog,hex_p]
 
 
 class tempscreen(basic_screen):
@@ -1308,15 +1344,22 @@ class tempscreen(basic_screen):
 		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",gotoscreen_ToDo)
 		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
 		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
-
-		temp_graph1 = time_graph((15,70),(800,400),60,90,100,max_data_points,green,"Tempurature","T1")
-		temp_graph2 = time_graph((15,550),(800,400),60,90,100,max_data_points,green,"Tempurature","T2")
+		
+		#Temp graphs. Need labels, and hight should depend on number of sensors and screensize: hight=(screenY-2*top/bottombuffer-2inbetweenbuffer)/(num_sensors+1)
+		ta_label = text_label((300,60),(200,30),"Average Temp",light_blue)
+		temp_graphA = time_graph((15,100),(800,220),60,90,100,max_data_points,green,"Tempurature","TA")
+		t1_label = text_label((300,380),(200,30),"Temp Sensor 1",light_blue)
+		temp_graph1 = time_graph((15,420),(800,220),60,90,100,max_data_points,green,"Tempurature","T1")
+		t2_label = text_label((300,700),(200,30),"Temp Sensor 2",light_blue)
+		temp_graph2 = time_graph((15,740),(800,220),60,90,100,max_data_points,green,"Tempurature","T2")
 
 		#time and date
 		rec_l_date = date_label((15,15),(100,30),light_blue)
 		rec_l_time = time_label((130,15),(100,30),light_blue)
 		
-		self.objects = [rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,temp_graph1,temp_graph2]
+		relay_status = relay_status_bar((500,15))
+		
+		self.objects = [rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,t1_label,temp_graph1,t2_label,temp_graph2,ta_label,temp_graphA,relay_status]
 
 
 class humidscreen(basic_screen):
@@ -1335,16 +1378,23 @@ class humidscreen(basic_screen):
 		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
 		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
 		
-		humid_graph1 = time_graph((15,70),(800,400),60,110,100,max_data_points,light_blue,"Humidity","H1")
-		humid_graph2 = time_graph((15,550),(800,400),60,110,100,max_data_points,light_blue,"Humidity","H2")
+		
+		ha_label = text_label((300,60),(200,30),"Average Humidity",light_blue)
+		humid_graphA = time_graph((15,100),(800,220),60,110,100,max_data_points,light_blue,"Humidity","HA")
+		h1_label = text_label((300,380),(200,30),"Humidity Sensor 1",light_blue)
+		humid_graph1 = time_graph((15,420),(800,220),60,110,100,max_data_points,light_blue,"Humidity","H1")
+		h2_label = text_label((300,700),(200,30),"Humidity Sensor 2",light_blue)
+		humid_graph2 = time_graph((15,740),(800,220),60,110,100,max_data_points,light_blue,"Humidity","H2")
 		
 		
 		#time and date
 		rec_l_date = date_label((15,15),(100,30),light_blue)
 		rec_l_time = time_label((130,15),(100,30),light_blue)
 		
+		relay_status = relay_status_bar((500,15))
 		
-		self.objects = [rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,humid_graph1,humid_graph2]
+		
+		self.objects = [rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,humid_graph1,humid_graph2,humid_graphA,ha_label,h1_label,h2_label,relay_status]
 
 
 class datetimescreen(basic_screen):
