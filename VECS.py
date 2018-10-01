@@ -39,7 +39,7 @@ manual_control_engaged = False
 ToDo = []
 settings_dict = {}
 overrides = {"NN":"222222222222222",'HN':"222222222222222","CN":"222222222222222", "ND":"222222222222222", "NW":"222222222222222", "HD":"222222222222222", "HW":"222222222222222", "CD":"222222222222222", "CW":"222222222222222"}
-
+override_dict = {"T":[80.0,70.5],"H":[99.0,70.0]}
 
 """sensor related stuff"""
 num_sensors = 2 #eventually number of connected sensors will be dynamic
@@ -67,7 +67,7 @@ data_dict = {"TA":[75.0,76.0,75.5,78.0,78.5,79.0,80.0,81.0,79.2,78.9,"Error","Er
 "HL":[500],
 "HE":[0]}
 
-override_dict = {"T":[80.0,70.5],"H":[100.0,70.0]}
+
 
 
 """new sceme for handling data. Send Aurduino a 'get all' command and it shuld return date,relay state, and T/H pairs, Manual control indicator, and Override state as text in the 
@@ -115,6 +115,7 @@ gotoscreen_ToDo = pygame.event.Event(CUSTOMEVENT, category = 'changescreen', scr
 gotoscreen_DateTime = pygame.event.Event(CUSTOMEVENT, category = 'changescreen', screen = 'DateTime')
 gotoscreen_ToDoset = pygame.event.Event(CUSTOMEVENT, category = 'changescreen', screen = 'ToDoset')
 gotoscreen_ToDochange = pygame.event.Event(CUSTOMEVENT, category = 'changescreen', screen = 'ToDochange')
+gotoscreen_Override = pygame.event.Event(CUSTOMEVENT, category = 'changescreen', screen = 'Override')
 
 ToDo_change = pygame.event.Event(CUSTOMEVENT, category = 'todochange', action = 'edit')
 ToDo_new = pygame.event.Event(CUSTOMEVENT, category = 'todochange', action = 'new')
@@ -162,12 +163,12 @@ def serial_recieve():
 
 """sets up serial com with arduino"""
 def serial_comm_start():
-    try:
-        global ser
-        ser = serial.Serial('/dev/ttyACM0', 9600,timeout=1) # Establish the connection on a specific port, must know the name of the arduino port
-        serial_comm.append("serial comm sucessfull")
-    except:
-        serial_comm.append("serial comm failed")
+	try:
+		global ser
+		ser = serial.Serial('/dev/ttyACM0', 9600,timeout=1) # Establish the connection on a specific port, must know the name of the arduino port
+		serial_comm.append("serial comm sucessfull")
+	except:
+		serial_comm.append("serial comm failed")
 
 
 def get_str_now():
@@ -315,274 +316,334 @@ def makebit(full,bit,val):
 
 """found the following function online. Don't remember where"""
 def inside_polygon(x,y,points):
-    """return True if (x,y) is inside polygon defined by points"""
-    n = len(points)
-    inside = False
-    p1x,p1y = points[0]
-    for i in range(1,n+1):
-        p2x,p2y = points[i % n]
-        if y > min(p1y,p2y):
-            if y <= max(p1y,p2y):
-                if x <= max(p1x,p2x):
-                    if p1y != p2y:
-                        xinters = (y-p1y)*(p2x-p1x)/(p2y-p1y)+p1x
-                    if p1x == p2x or x <= xinters:
-                        inside = not inside
-        p1x, p1y = p2x,p2y
-    return inside
+	"""return True if (x,y) is inside polygon defined by points"""
+	n = len(points)
+	inside = False
+	p1x,p1y = points[0]
+	for i in range(1,n+1):
+		p2x,p2y = points[i % n]
+		if y > min(p1y,p2y):
+			if y <= max(p1y,p2y):
+				if x <= max(p1x,p2x):
+					if p1y != p2y:
+						xinters = (y-p1y)*(p2x-p1x)/(p2y-p1y)+p1x
+					if p1x == p2x or x <= xinters:
+						inside = not inside
+		p1x, p1y = p2x,p2y
+	return inside
 
 
 
 """Objects to be used in screens. Often pushing custom defined events into the event queue"""
 
 class control():
-    def __init__(self,box): 
-        self.x1,self.y1,self.x2,self.y2 = box
-        self.dx = self.x2 - self.x1
-        self.dy = self.y2 - self.y1
-        self.points = ((self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2))
+	def __init__(self,box): 
+		self.x1,self.y1,self.x2,self.y2 = box
+		self.dx = self.x2 - self.x1
+		self.dy = self.y2 - self.y1
+		self.points = ((self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2))
 
 
 #hexagonal toggle button - working
 class button_hex_tog():
-    def __init__(self,start_pos,side_len,color,text,default_state,do_pressed,do_unpressed):
-        self.start_pos = start_pos
-        self.x1 = start_pos[0]
-        self.y1 = start_pos[1]
-        self.side_len = side_len
-        self.color = color
-        self.text = text
-        self.pressed = default_state
-        self.do_pressed = do_pressed
-        self.do_unpressed = do_unpressed
-        self.hx = int((self.side_len * sqrt(3))/2)
-        self.hy = int(self.side_len/2)
-        self.center = (self.x1+self.hx,self.y1+self.hy)
-        self.points = ((self.x1,self.y1),(self.x1+self.hx,self.y1-self.hy),(self.x1+(2*self.hx),self.y1),(self.x1+(2*self.hx),self.y1+(2*self.hy)),(self.x1+self.hx,self.y1+(3*self.hy)),(self.x1,self.y1+(2*self.hy)))
-        self.inner_space = 5
-        self.lx = self.inner_space*cos(pi/6)
-        self.ly = self.inner_space*sin(pi/6)
-        self.points_inner = ((self.points[0][0]+self.lx,self.points[0][1]+self.ly),(self.points[1][0],self.points[1][1]+self.inner_space),(self.points[2][0]-self.lx,self.points[2][1]+self.ly),(self.points[3][0]-self.lx,self.points[3][1]-self.ly),(self.points[4][0],self.points[4][1]-self.inner_space),(self.points[5][0]+self.lx,self.points[5][1]-self.ly))
-        self.button_text_size = font.size(self.text)
-        self.button_txt_loc = (self.center[0]-self.button_text_size[0]/2,self.center[1]-self.button_text_size[1]/2) #sets up text options for button label
+	def __init__(self,start_pos,side_len,color,text,default_state,do_pressed,do_unpressed):
+		self.start_pos = start_pos
+		self.x1 = start_pos[0]
+		self.y1 = start_pos[1]
+		self.side_len = side_len
+		self.color = color
+		self.text = text
+		self.pressed = default_state
+		self.do_pressed = do_pressed
+		self.do_unpressed = do_unpressed
+		self.hx = int((self.side_len * sqrt(3))/2)
+		self.hy = int(self.side_len/2)
+		self.center = (self.x1+self.hx,self.y1+self.hy)
+		self.points = ((self.x1,self.y1),(self.x1+self.hx,self.y1-self.hy),(self.x1+(2*self.hx),self.y1),(self.x1+(2*self.hx),self.y1+(2*self.hy)),(self.x1+self.hx,self.y1+(3*self.hy)),(self.x1,self.y1+(2*self.hy)))
+		self.inner_space = 5
+		self.lx = self.inner_space*cos(pi/6)
+		self.ly = self.inner_space*sin(pi/6)
+		self.points_inner = ((self.points[0][0]+self.lx,self.points[0][1]+self.ly),(self.points[1][0],self.points[1][1]+self.inner_space),(self.points[2][0]-self.lx,self.points[2][1]+self.ly),(self.points[3][0]-self.lx,self.points[3][1]-self.ly),(self.points[4][0],self.points[4][1]-self.inner_space),(self.points[5][0]+self.lx,self.points[5][1]-self.ly))
+		self.button_text_size = font.size(self.text)
+		self.button_txt_loc = (self.center[0]-self.button_text_size[0]/2,self.center[1]-self.button_text_size[1]/2) #sets up text options for button label
 
-        
-    def draw(self):
-        pygame.draw.polygon(screen,self.color,self.points,1) # draws outer hex
-        if self.pressed:
-            pygame.draw.polygon(screen,self.color,self.points_inner,0)
-            button_txt = msg_obj.render(self.text,True, black, self.color)
-        
-        else:
-            pygame.draw.polygon(screen,black,self.points_inner,0)
-            button_txt = msg_obj.render(self.text,True, self.color, black)
-        
-        screen.blit(button_txt,self.button_txt_loc)
-    
-    def do(self,event):
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            self.pressed = not self.pressed
-            self.draw() 
-            if self.pressed:
-                pygame.event.post(self.do_pressed)
-            else:
-                pygame.event.post(self.do_unpressed)
+		
+	def draw(self):
+		pygame.draw.polygon(screen,self.color,self.points,1) # draws outer hex
+		if self.pressed:
+			pygame.draw.polygon(screen,self.color,self.points_inner,0)
+			button_txt = msg_obj.render(self.text,True, black, self.color)
+		
+		else:
+			pygame.draw.polygon(screen,black,self.points_inner,0)
+			button_txt = msg_obj.render(self.text,True, self.color, black)
+		
+		screen.blit(button_txt,self.button_txt_loc)
+	
+	def do(self,event):
+		if event.type == pygame.MOUSEBUTTONDOWN:
+			self.pressed = not self.pressed
+			self.draw() 
+			if self.pressed:
+				pygame.event.post(self.do_pressed)
+			else:
+				pygame.event.post(self.do_unpressed)
 
 
 #hexagonal do button - working
 class button_hex_do():
-    def __init__(self,start_pos,side_len,color,text,default_state,do_pressed):
-        self.start_pos = start_pos
-        self.x1 = start_pos[0]
-        self.y1 = start_pos[1]
-        self.side_len = side_len
-        self.color = color
-        self.text = text
-        self.pressed = default_state
-        self.do_pressed = do_pressed
-        self.hx = int((self.side_len * sqrt(3))/2)
-        self.hy = int(self.side_len/2)
-        self.center = (self.x1+self.hx,self.y1+self.hy)
-        self.points = ((self.x1,self.y1),(self.x1+self.hx,self.y1-self.hy),(self.x1+(2*self.hx),self.y1),(self.x1+(2*self.hx),self.y1+(2*self.hy)),(self.x1+self.hx,self.y1+(3*self.hy)),(self.x1,self.y1+(2*self.hy)))
-        self.inner_space = 5
-        self.lx = self.inner_space*cos(pi/6)
-        self.ly = self.inner_space*sin(pi/6)
-        self.points_inner = ((self.points[0][0]+self.lx,self.points[0][1]+self.ly),(self.points[1][0],self.points[1][1]+self.inner_space),(self.points[2][0]-self.lx,self.points[2][1]+self.ly),(self.points[3][0]-self.lx,self.points[3][1]-self.ly),(self.points[4][0],self.points[4][1]-self.inner_space),(self.points[5][0]+self.lx,self.points[5][1]-self.ly))
-        self.button_text_size = font.size(self.text)
-        self.button_txt_loc = (self.center[0]-self.button_text_size[0]/2,self.center[1]-self.button_text_size[1]/2) #sets up text options for button label
+	def __init__(self,start_pos,side_len,color,text,default_state,do_pressed):
+		self.start_pos = start_pos
+		self.x1 = start_pos[0]
+		self.y1 = start_pos[1]
+		self.side_len = side_len
+		self.color = color
+		self.text = text
+		self.pressed = default_state
+		self.do_pressed = do_pressed
+		self.hx = int((self.side_len * sqrt(3))/2)
+		self.hy = int(self.side_len/2)
+		self.center = (self.x1+self.hx,self.y1+self.hy)
+		self.points = ((self.x1,self.y1),(self.x1+self.hx,self.y1-self.hy),(self.x1+(2*self.hx),self.y1),(self.x1+(2*self.hx),self.y1+(2*self.hy)),(self.x1+self.hx,self.y1+(3*self.hy)),(self.x1,self.y1+(2*self.hy)))
+		self.inner_space = 5
+		self.lx = self.inner_space*cos(pi/6)
+		self.ly = self.inner_space*sin(pi/6)
+		self.points_inner = ((self.points[0][0]+self.lx,self.points[0][1]+self.ly),(self.points[1][0],self.points[1][1]+self.inner_space),(self.points[2][0]-self.lx,self.points[2][1]+self.ly),(self.points[3][0]-self.lx,self.points[3][1]-self.ly),(self.points[4][0],self.points[4][1]-self.inner_space),(self.points[5][0]+self.lx,self.points[5][1]-self.ly))
+		self.button_text_size = font.size(self.text)
+		self.button_txt_loc = (self.center[0]-self.button_text_size[0]/2,self.center[1]-self.button_text_size[1]/2) #sets up text options for button label
 
-        
-    def draw(self):
-        pygame.draw.polygon(screen,self.color,self.points,1) # draws outer hex
-        if self.pressed:
-            pygame.draw.polygon(screen,self.color,self.points_inner,0)
-            button_txt = msg_obj.render(self.text,True, black, self.color)
-        
-        else:
-            pygame.draw.polygon(screen,black,self.points_inner,0)
-            button_txt = msg_obj.render(self.text,True, self.color, black)
-        
-        screen.blit(button_txt,self.button_txt_loc)
-    
-    def do(self,event):
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            pygame.event.post(self.do_pressed)
+		
+	def draw(self):
+		pygame.draw.polygon(screen,self.color,self.points,1) # draws outer hex
+		if self.pressed:
+			pygame.draw.polygon(screen,self.color,self.points_inner,0)
+			button_txt = msg_obj.render(self.text,True, black, self.color)
+		
+		else:
+			pygame.draw.polygon(screen,black,self.points_inner,0)
+			button_txt = msg_obj.render(self.text,True, self.color, black)
+		
+		screen.blit(button_txt,self.button_txt_loc)
+	
+	def do(self,event):
+		if event.type == pygame.MOUSEBUTTONDOWN:
+			pygame.event.post(self.do_pressed)
 
 
 #eliptical toggle button - needs testing
 class button_ellipse_tog():
-    def __init__(self,loc,size,color,text,default_state,do_pressed,do_unpressed):
-        self.loc = loc
-        self.dx,self.dy = size
-        self.do_pressed = do_pressed
-        self.do_unpressed = do_unpressed
-        self.x1 = loc[0]
-        self.y1 = loc[1]
-        self.x2 = self.x1 + size[0]
-        self.y2 = self.y1 +size[1]
-        self.points = (self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2)
-        self.color = color
-        self.pressed = default_state
-        self.text = text
+	def __init__(self,loc,size,color,text,default_state,do_pressed,do_unpressed):
+		self.loc = loc
+		self.dx,self.dy = size
+		self.do_pressed = do_pressed
+		self.do_unpressed = do_unpressed
+		self.x1 = loc[0]
+		self.y1 = loc[1]
+		self.x2 = self.x1 + size[0]
+		self.y2 = self.y1 +size[1]
+		self.points = (self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2)
+		self.color = color
+		self.pressed = default_state
+		self.text = text
 
-    def draw(self):
-        
-        if self.pressed:
-            self.boarder = 0
-            self.text_bgcolor = self.color
-        else:
-            self.boarder = 1
-            self.text_bgcolor = black
-            
-        self.txt_loc = (self.x1 + self.dx/2 - font.size(self.text)[0]/2,self.y1 + self.dy/2 - font.size(self.text)[1]/2)
-        txt = msg_obj.render(self.text,True, white, self.text_bgcolor)
-        pygame.draw.ellipse(screen,black, pygame.Rect((self.x1,self.y1,self.dx,self.dy)))
-        pygame.draw.ellipse(screen,self.color, pygame.Rect((self.x1,self.y1,self.dx,self.dy)),self.boarder)
-        screen.blit(txt,self.txt_loc)
-    
-    def do(self,event):
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            self.pressed = not self.pressed
-            self.draw()
-            if self.pressed:
-                pygame.event.post(self.do_pressed)
-            else:
-                pygame.event.post(self.do_unpressed)            
+	def draw(self):
+		
+		if self.pressed:
+			self.boarder = 0
+			self.text_bgcolor = self.color
+		else:
+			self.boarder = 1
+			self.text_bgcolor = black
+			
+		self.txt_loc = (self.x1 + self.dx/2 - font.size(self.text)[0]/2,self.y1 + self.dy/2 - font.size(self.text)[1]/2)
+		txt = msg_obj.render(self.text,True, white, self.text_bgcolor)
+		pygame.draw.ellipse(screen,black, pygame.Rect((self.x1,self.y1,self.dx,self.dy)))
+		pygame.draw.ellipse(screen,self.color, pygame.Rect((self.x1,self.y1,self.dx,self.dy)),self.boarder)
+		screen.blit(txt,self.txt_loc)
+	
+	def do(self,event):
+		if event.type == pygame.MOUSEBUTTONDOWN:
+			self.pressed = not self.pressed
+			self.draw()
+			if self.pressed:
+				pygame.event.post(self.do_pressed)
+			else:
+				pygame.event.post(self.do_unpressed)			
 
 
 #eliptical do button - needs testing
 class button_ellipse_do():
-    def __init__(self,loc,size,color,text,default_state,do_pressed):
-        self.loc = loc
-        self.dx,self.dy = size
-        self.do_pressed = do_pressed
-        self.x1 = loc[0]
-        self.y1 = loc[1]
-        self.x2 = self.x1 + size[0]
-        self.y2 = self.y1 +size[1]
-        self.points = (self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2)
-        self.color = color
-        self.pressed = default_state
-        self.text = text
+	def __init__(self,loc,size,color,text,default_state,do_pressed):
+		self.loc = loc
+		self.dx,self.dy = size
+		self.do_pressed = do_pressed
+		self.x1 = loc[0]
+		self.y1 = loc[1]
+		self.x2 = self.x1 + size[0]
+		self.y2 = self.y1 +size[1]
+		self.points = (self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2)
+		self.color = color
+		self.pressed = default_state
+		self.text = text
 
-    def draw(self):
-        
-        if self.pressed:
-            self.boarder = 0
-            self.text_bgcolor = self.color
-        else:
-            self.boarder = 1
-            self.text_bgcolor = black
-            
-        self.txt_loc = (self.x1 + self.dx/2 - font.size(self.text)[0]/2,self.y1 + self.dy/2 - font.size(self.text)[1]/2)
-        txt = msg_obj.render(self.text,True, white, self.text_bgcolor)
-        pygame.draw.ellipse(screen,black, pygame.Rect((self.x1,self.y1,self.dx,self.dy)))
-        pygame.draw.ellipse(screen,self.color, pygame.Rect((self.x1,self.y1,self.dx,self.dy)),self.boarder)
-        screen.blit(txt,self.txt_loc)
-    
-    def do(self,event):
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            pygame.event.post(self.do_pressed)
+	def draw(self):
+		
+		if self.pressed:
+			self.boarder = 0
+			self.text_bgcolor = self.color
+		else:
+			self.boarder = 1
+			self.text_bgcolor = black
+			
+		self.txt_loc = (self.x1 + self.dx/2 - font.size(self.text)[0]/2,self.y1 + self.dy/2 - font.size(self.text)[1]/2)
+		txt = msg_obj.render(self.text,True, white, self.text_bgcolor)
+		pygame.draw.ellipse(screen,black, pygame.Rect((self.x1,self.y1,self.dx,self.dy)))
+		pygame.draw.ellipse(screen,self.color, pygame.Rect((self.x1,self.y1,self.dx,self.dy)),self.boarder)
+		screen.blit(txt,self.txt_loc)
+	
+	def do(self,event):
+		if event.type == pygame.MOUSEBUTTONDOWN:
+			pygame.event.post(self.do_pressed)
 
 
 #rectangular toggle button - needs testing
 class button_rec_tog():
-    def __init__(self,loc,size,color,text,default_state,do_pressed,do_unpressed):
-        self.loc = loc
-        self.do_pressed = do_pressed
-        self.do_unpressed = do_unpressed
-        self.dx,self.dy = size
-        self.x1 = loc[0]
-        self.y1 = loc[1]
-        self.x2 = self.x1 + size[0]
-        self.y2 = self.y1 +size[1]
-        self.points = (self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2)
-        self.color = color
-        self.pressed = default_state
-        self.text = text
+	def __init__(self,loc,size,color,text,default_state,do_pressed,do_unpressed):
+		self.loc = loc
+		self.do_pressed = do_pressed
+		self.do_unpressed = do_unpressed
+		self.dx,self.dy = size
+		self.x1 = loc[0]
+		self.y1 = loc[1]
+		self.x2 = self.x1 + size[0]
+		self.y2 = self.y1 +size[1]
+		self.points = (self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2)
+		self.color = color
+		self.pressed = default_state
+		self.text = text
 
-    def draw(self):
-        
-        if self.pressed:
-            self.boarder = 0
-            self.text_bgcolor = self.color
-            txt = msg_obj.render(self.text,True, black, self.text_bgcolor)
-        else:
-            self.boarder = 1
-            self.text_bgcolor = black
-            txt = msg_obj.render(self.text,True, self.color, self.text_bgcolor)
-            
-        self.txt_loc = (self.x1 + self.dx/2 - font.size(self.text)[0]/2,self.y1 + self.dy/2 - font.size(self.text)[1]/2)
-        
-        pygame.draw.rect(screen,black, pygame.Rect((self.x1,self.y1,self.dx,self.dy)))
-        pygame.draw.rect(screen,self.color, pygame.Rect((self.x1,self.y1,self.dx,self.dy)),self.boarder)
-        screen.blit(txt,self.txt_loc)
-    
-    def do(self,event):
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            self.pressed = not self.pressed
-            self.draw()
-            if self.pressed:
-                pygame.event.post(self.do_pressed)
-            else:
-                pygame.event.post(self.do_unpressed)            
+	def draw(self):
+		
+		if self.pressed:
+			self.boarder = 0
+			self.text_bgcolor = self.color
+			txt = msg_obj.render(self.text,True, black, self.text_bgcolor)
+		else:
+			self.boarder = 1
+			self.text_bgcolor = black
+			txt = msg_obj.render(self.text,True, self.color, self.text_bgcolor)
+			
+		self.txt_loc = (self.x1 + self.dx/2 - font.size(self.text)[0]/2,self.y1 + self.dy/2 - font.size(self.text)[1]/2)
+		
+		pygame.draw.rect(screen,black, pygame.Rect((self.x1,self.y1,self.dx,self.dy)))
+		pygame.draw.rect(screen,self.color, pygame.Rect((self.x1,self.y1,self.dx,self.dy)),self.boarder)
+		screen.blit(txt,self.txt_loc)
+	
+	def do(self,event):
+		if event.type == pygame.MOUSEBUTTONDOWN:
+			self.pressed = not self.pressed
+			self.draw()
+			if self.pressed:
+				pygame.event.post(self.do_pressed)
+			else:
+				pygame.event.post(self.do_unpressed)			
+
+
+class button_rec_3state():
+	#a 3 state button with a boarder
+	def __init__(self,loc,size,boarder_color,color1,color2,color3,text,default_state,do_state1,do_state2,do_state3):
+		self.loc = loc
+		self.do_state1 = do_state1
+		self.do_state2 = do_state2
+		self.do_state3 = do_state3
+		self.color1 = color1
+		self.color2=color2
+		self.color3=color3
+		self.boarder_color = boarder_color
+		self.dx,self.dy = size
+		self.x1 = loc[0]
+		self.y1 = loc[1]
+		self.x2 = self.x1 + size[0]
+		self.y2 = self.y1 +size[1]
+		self.points = (self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2)
+		self.current_state = default_state #states should be 1,2 or 3
+		self.text = text
+		self.color = [color1,color2,color3][default_state-1]
+		self.boarder = 0 #don't think I even need this for this button
+		self.order = {1:2,2:3,3:1}
+
+	def draw(self):
+		
+		
+		
+		
+		if self.current_state == 1:
+			self.color = self.color1
+
+		elif self.current_state == 2:
+			self.color = self.color2
+
+		elif self.current_state == 3:
+			self.color = self.color3
+			
+		
+		if self.color == black:
+			txt_col = white
+		else:
+			txt_col = black
+		txt = msg_obj.render(self.text,True, txt_col, self.color)
+		
+		self.txt_loc = (self.x1 + self.dx/2 - font.size(self.text)[0]/2,self.y1 + self.dy/2 - font.size(self.text)[1]/2)
+		
+		
+		pygame.draw.rect(screen,self.boarder_color, pygame.Rect((self.x1,self.y1,self.dx,self.dy)))
+		pygame.draw.rect(screen,black, pygame.Rect((self.x1+2,self.y1+2,self.dx-4,self.dy-4)))
+		pygame.draw.rect(screen,self.color, pygame.Rect((self.x1+2,self.y1+2,self.dx-4,self.dy-4)),0)
+		screen.blit(txt,self.txt_loc)
+	
+	def do(self,event):
+		if event.type == pygame.MOUSEBUTTONDOWN:
+			self.current_state = self.order[self.current_state]
+			self.draw()
+			pygame.event.post([self.do_state1,self.do_state2,self.do_state3][self.current_state-1])
+
 
 
 #simple button, push it, it does something - working
 class button_rec_do():
-    def __init__(self,loc,size,color,text,default_state,do_on_press):
-        self.do_on_press = do_on_press
-        self.loc = loc
-        self.dx,self.dy = size
-        self.x1 = loc[0]
-        self.y1 = loc[1]
-        self.x2 = self.x1 + size[0]
-        self.y2 = self.y1 +size[1]
-        self.points = (self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2)
-        self.color = color
-        self.pressed = default_state
-        self.text = text
+	def __init__(self,loc,size,color,text,default_state,do_on_press):
+		self.do_on_press = do_on_press
+		self.loc = loc
+		self.dx,self.dy = size
+		self.x1 = loc[0]
+		self.y1 = loc[1]
+		self.x2 = self.x1 + size[0]
+		self.y2 = self.y1 +size[1]
+		self.points = (self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2)
+		self.color = color
+		self.pressed = default_state
+		self.text = text
 
-    def draw(self):
-        #Being pressed or unpressed is just for appearance. clicking the button does not automatically toggle the state
-        if self.pressed:
-            self.boarder = 0
-            self.text_bgcolor = self.color
-            txt = msg_obj.render(self.text,True, black, self.text_bgcolor)
-        else:
-            self.boarder = 1
-            self.text_bgcolor = black
-            txt = msg_obj.render(self.text,True, self.color, self.text_bgcolor)
-            
-        self.txt_loc = (self.x1 + self.dx/2 - font.size(self.text)[0]/2,self.y1 + self.dy/2 - font.size(self.text)[1]/2)
-        
-        pygame.draw.rect(screen,black, pygame.Rect((self.x1,self.y1,self.dx,self.dy)))
-        pygame.draw.rect(screen,self.color, pygame.Rect((self.x1,self.y1,self.dx,self.dy)),self.boarder)
-        screen.blit(txt,self.txt_loc)
-    
-    def do(self,event):
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            pygame.event.post(self.do_on_press)
+	def draw(self):
+		#Being pressed or unpressed is just for appearance. clicking the button does not automatically toggle the state
+		if self.pressed:
+			self.boarder = 0
+			self.text_bgcolor = self.color
+			txt = msg_obj.render(self.text,True, black, self.text_bgcolor)
+		else:
+			self.boarder = 1
+			self.text_bgcolor = black
+			txt = msg_obj.render(self.text,True, self.color, self.text_bgcolor)
+			
+		self.txt_loc = (self.x1 + self.dx/2 - font.size(self.text)[0]/2,self.y1 + self.dy/2 - font.size(self.text)[1]/2)
+		
+		pygame.draw.rect(screen,black, pygame.Rect((self.x1,self.y1,self.dx,self.dy)))
+		pygame.draw.rect(screen,self.color, pygame.Rect((self.x1,self.y1,self.dx,self.dy)),self.boarder)
+		screen.blit(txt,self.txt_loc)
+	
+	def do(self,event):
+		if event.type == pygame.MOUSEBUTTONDOWN:
+			pygame.event.post(self.do_on_press)
 
 
 class button_img_do():
@@ -604,113 +665,113 @@ class button_img_do():
 
 
 class round_slider_int(control):
-    def __init__(self, pos, bradius,sradius,color,min_val,max_val,initial_val):
-        self.x1,self.y1 = pos
-        text_size = font.size(str(initial_val)) #getting the size of the output
-        self.x2,self.y2 = (self.x1+2*(bradius+sradius),self.y1+2*(bradius+sradius)+int((1.5)*text_size[1]))
-        self.points = ((self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2))
-        self.dx = self.x2 - self.x1
-        self.dy = self.y2 - self.y1
-        self.min_val = min_val
-        self.max_val = max_val
-        self.initial_val = initial_val
-        self.val_range = max_val - min_val
-        self.center = (self.x1+int(self.dx/2),self.y1+int(self.dy/2))
-        self.bradius = bradius
-        self.sradius = sradius
-        self.color = color
-        self.xp = int(round(self.bradius * cos(2*pi*(self.initial_val-self.min_val)/self.val_range - (pi/2))+self.center[0])+1) #x-coord of the initial value. The +1 ensures it is at min and not max, which technically are very close
-        self.yp = int(round(self.bradius * sin(2*pi*(self.initial_val-self.min_val)/self.val_range- (pi/2)) + self.center[1])) #y-coord of the initial value
-        self.dial_output = str(initial_val)
-        
-        
-    
-    def draw(self):
-        axp = self.xp - self.center[0] #gets x pos relative to center
-        ayp = self.yp - self.center[1] #gets y pos relative to center
-        
-        rx = int(self.bradius * sin(asin(axp/(sqrt(axp**2 + ayp**2)))) + self.center[0]) #gets x pos adjusted to be on big circle
-        ry = int(self.bradius * cos(acos(ayp/(sqrt(axp**2 + ayp**2)))) + self.center[1]) #gets y pos adjusted to be on big circle
-        
-        self.dial_output = str(round(((atan2(-axp,ayp)+pi)/(2*pi))*self.val_range + self.min_val))
-        text_size = font.size(self.dial_output)
-        dial_out_loc = (self.center[0]-text_size[0]/2,self.y1-text_size[1])
-        dial_out_txt = msg_obj.render(self.dial_output,True, white, black)
-        
-        pygame.draw.rect(screen,black,pygame.Rect((self.x1,self.y1-text_size[1],self.dx,self.dy+text_size[1])),0) #blacks out box
-        pygame.draw.circle(screen,self.color, self.center,self.bradius,1) #draws big circle
-        pygame.draw.circle(screen,self.color, self.center,self.sradius,1) #draws little center circle
-        pygame.draw.circle(screen,self.color, (self.center[0],self.center[1]-self.bradius),self.sradius,1) #draws little circle at zero position
-        pygame.draw.line(screen,self.color,self.center,(self.center[0],self.center[1]-self.bradius),1) #draws line up to zero position
-        
-        
-        pygame.draw.line(screen,self.color,self.center,(rx,ry),1) #draws line to big circle
-        pygame.draw.circle(screen,self.color, (rx,ry),self.sradius,1) #draws small cirlce around adjusted point on big circle
-        
-        
-        screen.blit(dial_out_txt,dial_out_loc)
-            
-    def do(self,event):
-        mouse_pos_x,mouse_pos_y = pygame.mouse.get_pos()
-        if pygame.mouse.get_pressed()[0] and inside_polygon(mouse_pos_x, mouse_pos_y,self.points):
-            self.xp= pygame.mouse.get_pos()[0] #gets x pos of mouse
-            self.yp= pygame.mouse.get_pos()[1] #gets y pos of mouse
-            self.draw()
+	def __init__(self, pos, bradius,sradius,color,min_val,max_val,initial_val):
+		self.x1,self.y1 = pos
+		text_size = font.size(str(initial_val)) #getting the size of the output
+		self.x2,self.y2 = (self.x1+2*(bradius+sradius),self.y1+2*(bradius+sradius)+int((1.5)*text_size[1]))
+		self.points = ((self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2))
+		self.dx = self.x2 - self.x1
+		self.dy = self.y2 - self.y1
+		self.min_val = min_val
+		self.max_val = max_val
+		self.initial_val = initial_val
+		self.val_range = max_val - min_val
+		self.center = (self.x1+int(self.dx/2),self.y1+int(self.dy/2))
+		self.bradius = bradius
+		self.sradius = sradius
+		self.color = color
+		self.xp = int(round(self.bradius * cos(2*pi*(self.initial_val-self.min_val)/self.val_range - (pi/2))+self.center[0])+1) #x-coord of the initial value. The +1 ensures it is at min and not max, which technically are very close
+		self.yp = int(round(self.bradius * sin(2*pi*(self.initial_val-self.min_val)/self.val_range- (pi/2)) + self.center[1])) #y-coord of the initial value
+		self.dial_output = str(initial_val)
+		
+		
+	
+	def draw(self):
+		axp = self.xp - self.center[0] #gets x pos relative to center
+		ayp = self.yp - self.center[1] #gets y pos relative to center
+		
+		rx = int(self.bradius * sin(asin(axp/(sqrt(axp**2 + ayp**2)))) + self.center[0]) #gets x pos adjusted to be on big circle
+		ry = int(self.bradius * cos(acos(ayp/(sqrt(axp**2 + ayp**2)))) + self.center[1]) #gets y pos adjusted to be on big circle
+		
+		self.dial_output = str(round(((atan2(-axp,ayp)+pi)/(2*pi))*self.val_range + self.min_val))
+		text_size = font.size(self.dial_output)
+		dial_out_loc = (self.center[0]-text_size[0]/2,self.y1-text_size[1])
+		dial_out_txt = msg_obj.render(self.dial_output,True, white, black)
+		
+		pygame.draw.rect(screen,black,pygame.Rect((self.x1,self.y1-text_size[1],self.dx,self.dy+text_size[1])),0) #blacks out box
+		pygame.draw.circle(screen,self.color, self.center,self.bradius,1) #draws big circle
+		pygame.draw.circle(screen,self.color, self.center,self.sradius,1) #draws little center circle
+		pygame.draw.circle(screen,self.color, (self.center[0],self.center[1]-self.bradius),self.sradius,1) #draws little circle at zero position
+		pygame.draw.line(screen,self.color,self.center,(self.center[0],self.center[1]-self.bradius),1) #draws line up to zero position
+		
+		
+		pygame.draw.line(screen,self.color,self.center,(rx,ry),1) #draws line to big circle
+		pygame.draw.circle(screen,self.color, (rx,ry),self.sradius,1) #draws small cirlce around adjusted point on big circle
+		
+		
+		screen.blit(dial_out_txt,dial_out_loc)
+			
+	def do(self,event):
+		mouse_pos_x,mouse_pos_y = pygame.mouse.get_pos()
+		if pygame.mouse.get_pressed()[0] and inside_polygon(mouse_pos_x, mouse_pos_y,self.points):
+			self.xp= pygame.mouse.get_pos()[0] #gets x pos of mouse
+			self.yp= pygame.mouse.get_pos()[1] #gets y pos of mouse
+			self.draw()
 
 
 class round_slider_float(control):
-    def __init__(self, pos, bradius,sradius,color,min_val,max_val,initial_val,round_to):
-        self.x1,self.y1 = pos
-        self.round_to = round_to
-        text_size = font.size(str(initial_val)) #getting the size of the output
-        self.x2,self.y2 = (self.x1+2*(bradius+sradius),self.y1+2*(bradius+sradius)+int((1.5)*text_size[1]))
-        self.points = ((self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2))
-        self.dx = self.x2 - self.x1
-        self.dy = self.y2 - self.y1
-        self.min_val = min_val
-        self.max_val = max_val
-        self.initial_val = initial_val
-        self.val_range = max_val - min_val
-        self.center = (self.x1+int(self.dx/2),self.y1+int(self.dy/2))
-        self.bradius = bradius
-        self.sradius = sradius
-        self.color = color
-        self.xp = int(round(self.bradius * cos(2*pi*(self.initial_val-self.min_val)/self.val_range - (pi/2))+self.center[0])) #x-coord of the initial value
-        self.yp = int(round(self.bradius * sin(2*pi*(self.initial_val-self.min_val)/self.val_range- (pi/2)) + self.center[1])) #y-coord of the initial value
-        
-        
-    
-    def draw(self):
-        axp = self.xp - self.center[0] #gets x pos relative to center
-        ayp = self.yp - self.center[1] #gets y pos relative to center
-        
-        rx = int(self.bradius * sin(asin(axp/(sqrt(axp**2 + ayp**2)))) + self.center[0]) #gets x pos adjusted to be on big circle
-        ry = int(self.bradius * cos(acos(ayp/(sqrt(axp**2 + ayp**2)))) + self.center[1]) #gets y pos adjusted to be on big circle
-        
-        dial_output = str(round(((atan2(-axp,ayp)+pi)/(2*pi))*self.val_range + self.min_val,self.round_to))
-        text_size = font.size(dial_output)
-        dial_out_loc = (self.center[0]-text_size[0]/2,self.y1-text_size[1])
-        dial_out_txt = msg_obj.render(dial_output,True, white, black)
-        
-        pygame.draw.rect(screen,black,pygame.Rect((self.x1,self.y1-text_size[1],self.dx,self.dy+text_size[1])),0) #blacks out box
-        pygame.draw.circle(screen,self.color, self.center,self.bradius,1) #draws big circle
-        pygame.draw.circle(screen,self.color, self.center,self.sradius,1) #draws little center circle
-        pygame.draw.circle(screen,self.color, (self.center[0],self.center[1]-self.bradius),self.sradius,1) #draws little circle at zero position
-        pygame.draw.line(screen,self.color,self.center,(self.center[0],self.center[1]-self.bradius),1) #draws line up to zero position
-        
-        
-        pygame.draw.line(screen,self.color,self.center,(rx,ry),1) #draws line to big circle
-        pygame.draw.circle(screen,self.color, (rx,ry),self.sradius,1) #draws small cirlce around adjusted point on big circle
-        
-        
-        screen.blit(dial_out_txt,dial_out_loc)
-            
-    def do(self,event):
-        mouse_pos_x,mouse_pos_y = pygame.mouse.get_pos()
-        if pygame.mouse.get_pressed()[0] and inside_polygon(mouse_pos_x, mouse_pos_y,self.points):
-            self.xp= pygame.mouse.get_pos()[0] #gets x pos of mouse
-            self.yp= pygame.mouse.get_pos()[1] #gets y pos of mouse
-            self.draw()
+	def __init__(self, pos, bradius,sradius,color,min_val,max_val,initial_val,round_to):
+		self.x1,self.y1 = pos
+		self.round_to = round_to
+		text_size = font.size(str(initial_val)) #getting the size of the output
+		self.x2,self.y2 = (self.x1+2*(bradius+sradius),self.y1+2*(bradius+sradius)+int((1.5)*text_size[1]))
+		self.points = ((self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2))
+		self.dx = self.x2 - self.x1
+		self.dy = self.y2 - self.y1
+		self.min_val = min_val
+		self.max_val = max_val
+		self.initial_val = initial_val
+		self.val_range = max_val - min_val
+		self.center = (self.x1+int(self.dx/2),self.y1+int(self.dy/2))
+		self.bradius = bradius
+		self.sradius = sradius
+		self.color = color
+		self.xp = int(round(self.bradius * cos(2*pi*(self.initial_val-self.min_val)/self.val_range - (pi/2))+self.center[0])) #x-coord of the initial value
+		self.yp = int(round(self.bradius * sin(2*pi*(self.initial_val-self.min_val)/self.val_range- (pi/2)) + self.center[1])) #y-coord of the initial value
+		
+		
+	
+	def draw(self):
+		axp = self.xp - self.center[0] #gets x pos relative to center
+		ayp = self.yp - self.center[1] #gets y pos relative to center
+		
+		rx = int(self.bradius * sin(asin(axp/(sqrt(axp**2 + ayp**2)))) + self.center[0]) #gets x pos adjusted to be on big circle
+		ry = int(self.bradius * cos(acos(ayp/(sqrt(axp**2 + ayp**2)))) + self.center[1]) #gets y pos adjusted to be on big circle
+		
+		dial_output = str(round(((atan2(-axp,ayp)+pi)/(2*pi))*self.val_range + self.min_val,self.round_to))
+		text_size = font.size(dial_output)
+		dial_out_loc = (self.center[0]-text_size[0]/2,self.y1-text_size[1])
+		dial_out_txt = msg_obj.render(dial_output,True, white, black)
+		
+		pygame.draw.rect(screen,black,pygame.Rect((self.x1,self.y1-text_size[1],self.dx,self.dy+text_size[1])),0) #blacks out box
+		pygame.draw.circle(screen,self.color, self.center,self.bradius,1) #draws big circle
+		pygame.draw.circle(screen,self.color, self.center,self.sradius,1) #draws little center circle
+		pygame.draw.circle(screen,self.color, (self.center[0],self.center[1]-self.bradius),self.sradius,1) #draws little circle at zero position
+		pygame.draw.line(screen,self.color,self.center,(self.center[0],self.center[1]-self.bradius),1) #draws line up to zero position
+		
+		
+		pygame.draw.line(screen,self.color,self.center,(rx,ry),1) #draws line to big circle
+		pygame.draw.circle(screen,self.color, (rx,ry),self.sradius,1) #draws small cirlce around adjusted point on big circle
+		
+		
+		screen.blit(dial_out_txt,dial_out_loc)
+			
+	def do(self,event):
+		mouse_pos_x,mouse_pos_y = pygame.mouse.get_pos()
+		if pygame.mouse.get_pressed()[0] and inside_polygon(mouse_pos_x, mouse_pos_y,self.points):
+			self.xp= pygame.mouse.get_pos()[0] #gets x pos of mouse
+			self.yp= pygame.mouse.get_pos()[1] #gets y pos of mouse
+			self.draw()
 
 
 
@@ -1351,6 +1412,7 @@ class mainscreen(basic_screen):
 		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",gotoscreen_ToDo)
 		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
 		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
+		rec_b_override = button_rec_do((self.xmax-415,615),(400,80),yellow,"overrides",False,gotoscreen_Override)
 		
 		
 		#graphs of tem and humidity
@@ -1379,7 +1441,7 @@ class mainscreen(basic_screen):
 		
 		
 		#only objects in this list will be active (drawn)
-		self.objects = [ha_label,ta_label,relay_status,humid_graph,temp_graph,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,rot_b_status,rec_l_temp,rec_l_hum]
+		self.objects = [rec_b_override,ha_label,ta_label,relay_status,humid_graph,temp_graph,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,rot_b_status,rec_l_temp,rec_l_hum]
 		
 		#only include this for first screen too be drawn
 		self.draw()
@@ -1561,8 +1623,8 @@ class debugscreen(basic_screen):
 		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
 		rec_b_debug = button_img_do((self.xmax-415,535),"Debug on.png",donothing)
 		
-		
-		OR_slider = minmax_slider((137,300),50,100,blue,red,5,(950,150),"T")
+		#testing 3 state button
+		example_3state = button_rec_3state((self.xmax-500,615),(100,100),light_blue,white,black,green,"test",1,donothing,donothing,donothing)
 		
 		
 		
@@ -1575,7 +1637,7 @@ class debugscreen(basic_screen):
 		rec_l_date = date_label((15,15),(100,30),light_blue)
 		rec_l_time = time_label((130,15),(100,30),light_blue)
 		
-		self.objects = [OR_slider,rec_b_debug,rec_b_MC,rec_b_ToDo,rec_b_humid,rec_b_temp,rec_b_datetime,rec_b_main,rec_l_date,rec_l_time,screen_label,debug_w,serial_label]
+		self.objects = [example_3state,rec_b_debug,rec_b_MC,rec_b_ToDo,rec_b_humid,rec_b_temp,rec_b_datetime,rec_b_main,rec_l_date,rec_l_time,screen_label,debug_w,serial_label]
 
 
 class ToDoscreen(basic_screen):
@@ -1635,6 +1697,34 @@ class ToDoEditor(basic_screen):
 		self.round_tog_pad_state = ellipse_toggle_pad((100,300),(75,75),5,b_list2,light_blue,entry[4])
 		
 		self.objects = [self.round_tog_pad_state,self.round_tog_pad_relay,img_b_mis,img_b_cancel, self.slide_wheel_second,self.slide_wheel_minute,self.slide_wheel_hour,second_label,minute_label,hour_label,second_label,minute_label,hour_label]
+
+
+
+class Overridescreen(basic_screen):
+	def __init__(self):
+		self.xmax = screen_size_x
+		self.ymax = screen_size_y
+		self.name = "ToDo"
+		
+		#here is all the objects you want in the screen
+		rec_b_main = button_img_do((self.xmax-415,15),"MS off.png",gotoscreen_Main)
+		rec_b_datetime = button_img_do((self.xmax-415,95),"DT off.png",gotoscreen_DateTime)
+		rec_b_temp = button_img_do((self.xmax-415,175),"Temp off.png",gotoscreen_Temp)
+		rec_b_humid = button_img_do((self.xmax-415,255),"Humidity off.png",gotoscreen_Humid)
+		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",donothing)
+		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
+		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
+		
+		temp_label = text_label((50,60),(137,40),"Temp",light_blue)
+		OR_slider_temp = minmax_slider((137,300),50,100,blue,red,5,(50,150),"T")
+		hum_label = text_label((50,560),(137,40),"Humidity",light_blue)
+		OR_slider_hum = minmax_slider((137,300),50,100,blue,red,5,(50,650),"H")
+		
+		#all the objects you want to render
+		self.objects = [hum_label,temp_label,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,OR_slider_temp,OR_slider_hum]
+
+
+
 
 
 
@@ -1775,7 +1865,8 @@ humid_s = humidscreen()
 datetime_s = datetimescreen()
 paas_s = paasscreen()
 ToDo_s = ToDoscreen()
-screen_dict = {"Main":main_s,"MC":mc_s,"Debug":debug_s,"Temp":temp_s,"Humid":humid_s,"DateTime":datetime_s,"paas":paas_s,"ToDo":ToDo_s}
+or_s = Overridescreen()
+screen_dict = {"Main":main_s,"MC":mc_s,"Debug":debug_s,"Temp":temp_s,"Humid":humid_s,"DateTime":datetime_s,"paas":paas_s,"ToDo":ToDo_s,"Override":or_s}
 
 
 current_screen = main_s
@@ -2013,22 +2104,21 @@ pygame.event.post(getTime) #gets the time from the arduino on startup
 
 """MAIN PROGRAM LOOP"""
 while True:
-    
-    for event in pygame.event.get():
-        screen_last = current_screen
-        
-        if event.type == pygame.QUIT:
-            save_settings()
-            exit()
-            
-        elif event.type == CUSTOMEVENT or event.type == SENSOR_EVENT:
-            event_handler(event)
-        
-        current_screen.event_handle(event)
-        if current_screen != screen_last:
-            current_screen.draw()
-            
+	
+	for event in pygame.event.get():
+		screen_last = current_screen
+		
+		if event.type == pygame.QUIT:
+			save_settings()
+			exit()
+			
+		elif event.type == CUSTOMEVENT or event.type == SENSOR_EVENT:
+			event_handler(event)
+		
+		current_screen.event_handle(event)
+		if current_screen != screen_last:
+			current_screen.draw()
+			
 
-    pygame.display.flip()    
-    clock.tick(60)
-
+	pygame.display.flip()	
+	clock.tick(60)
