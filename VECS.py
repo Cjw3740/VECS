@@ -40,6 +40,7 @@ ToDo = []
 settings_dict = {}
 overrides = {"NN":"222222222222222",'HN':"222222222222222","CN":"222222222222222", "ND":"222222222222222", "NW":"222222222222222", "HD":"222222222222222", "HW":"222222222222222", "CD":"222222222222222", "CW":"222222222222222"}
 
+
 """sensor related stuff"""
 num_sensors = 2 #eventually number of connected sensors will be dynamic
 
@@ -58,7 +59,13 @@ data_dict = {"TA":[75.0,76.0,75.5,78.0,78.5,79.0,80.0,81.0,79.2,78.9,"Error","Er
 "T4":[],
 "H4":[],
 "TA":[],
-"HA":[]}
+"HA":[],
+"TH":[0],
+"TL":[500],
+"TE":[0],
+"HH":[0],
+"HL":[500],
+"HE":[0]}
 
 override_dict = {"T":[80.0,70.5],"H":[100.0,70.0]}
 
@@ -122,6 +129,9 @@ MC_disable = pygame.event.Event(CUSTOMEVENT, category = 'manualcontrol', action 
 MC_reset = pygame.event.Event(CUSTOMEVENT, category = 'manualcontrol', action = 'reset')
 
 getSensorData = pygame.event.Event(CUSTOMEVENT, category = 'timeevent', action = 'getsensordata')
+
+clear_temp_tracking = pygame.event.Event(CUSTOMEVENT, category = 'clearsensordata')
+clear_hum_tracking = pygame.event.Event(CUSTOMEVENT, category = 'clearsensordata')
 
 donothing = pygame.event.Event(CUSTOMEVENT, category = 'donothing')
 
@@ -703,6 +713,85 @@ class round_slider_float(control):
             self.draw()
 
 
+
+class minmax_slider(control):
+	def __init__(self, size, min_val, max_val, min_color, max_color, min_diff, position,target):
+		self.x1,self.y1 = position
+		if size[0]%2: #ensures the width is an odd number so the exact center can be the vertical slider line
+			self.center = self.x1 + round(size[0]/2)+1
+			self.size = size
+		else:
+			self.center = self.x1 + size[0]/2+1
+			self.size = (size[0]+1,size[1])
+			
+		self.x2,self.y2=self.x1 + size[0],self.y1 +size[1]
+		self.dx,self.dy = self.x2 - self.x1,self.y2 - self.y1
+		self.points = ((self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2)) #the active box that constitutes the control
+		self.slider_loc = position #this is the upper left corner of the active box. The max and min text boxes will be outside this as they don't need to be blacked out every frame
+		self.text_size = font.size(str(max_val)) #getting the max dimensions of text it will display
+		self.slider_len = size[1]
+		self.min_val = min_val
+		self.max_val = max_val
+		self.min_diff = min_diff #minimum difference between max and min slider
+		self.target = target #the entry in override_dict it will affect
+		self.val_range = max_val - min_val
+		self.slider_txt_box = (size[0],30)
+		self.xp,self.yp = 0,0
+		self.m = (self.y2-self.y1)/(min_val-max_val)
+		self.b = self.y2 - (self.y2-self.y1)/(1-(max_val/min_val))
+		
+	def mv(self,val):
+		return int(max(min(val*self.m+self.b,self.y2-1),self.y1+1))
+
+
+	def draw(self):
+		global override_dict
+		pygame.draw.rect(screen,black,pygame.Rect((self.x1,self.y1-self.text_size[1],self.dx,self.dy+self.text_size[1]+20)),0) #blacks out box
+		pygame.draw.line(screen,white,(self.center,self.y1),(self.center,self.y2),1) #draws slider center line
+		pygame.draw.line(screen,white,(self.center-5,self.y1),(self.center+5,self.y1),1) #draws top horizontal bar
+		pygame.draw.line(screen,white,(self.center-5,self.y2),(self.center+5,self.y2),1) #draws bottom horizontal bar
+		pygame.draw.rect(screen,white,pygame.Rect((self.center-self.slider_txt_box[0]/2,self.y1-self.slider_txt_box[1]-13,self.slider_txt_box[0],self.slider_txt_box[1])),1) #draws max text box
+		pygame.draw.rect(screen,white,pygame.Rect((self.center-self.slider_txt_box[0]/2,self.y2+14,self.slider_txt_box[0],self.slider_txt_box[1])),1) #draws min text box
+		max_txt = msg_obj.render(str(self.max_val),True,white,black) #max text
+		min_txt = msg_obj.render(str(self.min_val),True,white,black) #min text
+		screen.blit(max_txt,(self.center-font.size(str(self.max_val))[0]/2,self.y1-self.slider_txt_box[1]-17+font.size(str(self.max_val))[1]/2))
+		screen.blit(min_txt,(self.center-font.size(str(self.min_val))[0]/2,self.y2+20))
+		
+		right_pos_y = self.mv(override_dict[self.target][0])
+		right_triangle = [(self.center+1,right_pos_y),(self.center+10,right_pos_y-10),(self.center+10,right_pos_y+10)]
+		left_pos_y = self.mv(override_dict[self.target][1])
+		left_triangle = [(self.center-1,left_pos_y),(self.center-10,left_pos_y-10),(self.center-10,left_pos_y+10)]
+		
+		pygame.draw.polygon(screen, red,right_triangle,0) #right slider triangle
+		pygame.draw.rect(screen,red,pygame.Rect(self.center+12,right_pos_y-13,font.size('100.0')[0]+4,self.text_size[1]+6),1) #right slider text box
+		pygame.draw.polygon(screen, blue,left_triangle,0) #left slider triangle
+		pygame.draw.rect(screen,blue,pygame.Rect(self.center-12,left_pos_y-13,-font.size('100.0')[0]-4,self.text_size[1]+6),1) #right slider text box
+		
+		slider_right_txt = msg_obj.render(str(round(override_dict[self.target][0],1)),True,white,black)
+		slider_left_txt = msg_obj.render(str(round(override_dict[self.target][1],1)),True,white,black)
+		
+		screen.blit(slider_right_txt, (self.center+20,right_pos_y-8))
+		screen.blit(slider_left_txt, (self.center-60,left_pos_y-8))
+		
+
+	def do(self,event):
+		global override_dict
+		mouse_pos_x,mouse_pos_y = pygame.mouse.get_pos()
+		if pygame.mouse.get_pressed()[0] and inside_polygon(mouse_pos_x, mouse_pos_y,self.points):
+			if mouse_pos_x > self.center:
+				override_dict[self.target][0] = max((1/self.m)*(mouse_pos_y - self.b),self.min_val+self.min_diff)
+				override_dict[self.target][1] = min(override_dict[self.target][1],override_dict[self.target][0]-self.min_diff)
+			else:
+				override_dict[self.target][1] = min((1/self.m)*(mouse_pos_y - self.b),self.max_val-self.min_diff)
+				override_dict[self.target][0] = max(override_dict[self.target][0],override_dict[self.target][1]+self.min_diff)
+			self.draw()
+
+
+
+
+
+
+
 #keypad control using toggle buttons
 class hex_pad():
 	
@@ -1023,6 +1112,9 @@ class time_graph():
 		
 		
 	def plot(self):
+		global override_dict
+		self.h_ov = override_dict[self.target[0]][0]
+		self.l_ov = override_dict[self.target[0]][1]
 		
 		pygame.draw.rect(screen,black, pygame.Rect((self.x1+1,self.y1+1,self.dx-2,self.dy-2)),0) #blacks out graph area
 		pygame.draw.rect(screen,black, pygame.Rect((self.x2+1,self.y1-16,85,self.dy+32)),0) #blacks out area to right of graph, currently seperate to make it clear, should ultimatly be combined with above line
@@ -1052,13 +1144,13 @@ class time_graph():
 		#high override
 		pygame.draw.polygon(screen, red, ((self.x2+2,self.mv(self.h_ov)),(self.x2+17,self.mv(self.h_ov)-15),(self.x2+17,self.mv(self.h_ov)+15)),1) #triabgle
 		pygame.draw.polygon(screen, red, ((self.x2+20,self.mv(self.h_ov)-15),(self.x2+20,self.mv(self.h_ov)+15),(self.x2+85,self.mv(self.h_ov)+15),(self.x2+85,self.mv(self.h_ov)-15)),1) #box
-		data_txt = msg_obj.render(str(self.h_ov),False, red, black)
+		data_txt = msg_obj.render(str(round(self.h_ov,1)),False, red, black)
 		txt_loc =  (self.x2+27,self.mv(self.h_ov)-11)
 		screen.blit(data_txt,txt_loc)
 		#low override
 		pygame.draw.polygon(screen, blue, ((self.x2+2,self.mv(self.l_ov)),(self.x2+17,self.mv(self.l_ov)-15),(self.x2+17,self.mv(self.l_ov)+15)),1)
 		pygame.draw.polygon(screen, blue, ((self.x2+20,self.mv(self.l_ov)-15),(self.x2+20,self.mv(self.l_ov)+15),(self.x2+85,self.mv(self.l_ov)+15),(self.x2+85,self.mv(self.l_ov)-15)),1)
-		data_txt = msg_obj.render(str(self.l_ov),False, blue, black)
+		data_txt = msg_obj.render(str(round(self.l_ov,1)),False, blue, black)
 		txt_loc =  (self.x2+27,self.mv(self.l_ov)-11)
 		screen.blit(data_txt,txt_loc)
 		
@@ -1345,13 +1437,20 @@ class tempscreen(basic_screen):
 		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
 		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
 		
-		#Temp graphs. Need labels, and hight should depend on number of sensors and screensize: hight=(screenY-2*top/bottombuffer-2inbetweenbuffer)/(num_sensors+1)
+		#Temp graphs. hight should depend on number of sensors and screensize: hight=(screenY-2*top/bottombuffer-2inbetweenbuffer)/(num_sensors+1)
 		ta_label = text_label((300,60),(200,30),"Average Temp",light_blue)
 		temp_graphA = time_graph((15,100),(800,220),60,90,100,max_data_points,green,"Tempurature","TA")
 		t1_label = text_label((300,380),(200,30),"Temp Sensor 1",light_blue)
 		temp_graph1 = time_graph((15,420),(800,220),60,90,100,max_data_points,green,"Tempurature","T1")
 		t2_label = text_label((300,700),(200,30),"Temp Sensor 2",light_blue)
 		temp_graph2 = time_graph((15,740),(800,220),60,90,100,max_data_points,green,"Tempurature","T2")
+		
+		#max/min temp
+		high_temp_l = sensor_label((950,150),(200,30),light_blue,"High Temp","TH")
+		low_temp_l = sensor_label((950,250),(200,30),light_blue,"Low Temp","TL")
+		error_temp = sensor_label((950,350),(200,30),yellow,"Errors","TE")
+		
+		clear_temp_data = button_rec_do((950,550),(200,30),light_blue,"Clear H/L",False,clear_temp_tracking)
 
 		#time and date
 		rec_l_date = date_label((15,15),(100,30),light_blue)
@@ -1359,7 +1458,7 @@ class tempscreen(basic_screen):
 		
 		relay_status = relay_status_bar((500,15))
 		
-		self.objects = [rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,t1_label,temp_graph1,t2_label,temp_graph2,ta_label,temp_graphA,relay_status]
+		self.objects = [error_temp,clear_temp_data,low_temp_l,high_temp_l,rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,t1_label,temp_graph1,t2_label,temp_graph2,ta_label,temp_graphA,relay_status]
 
 
 class humidscreen(basic_screen):
@@ -1387,6 +1486,13 @@ class humidscreen(basic_screen):
 		humid_graph2 = time_graph((15,740),(800,220),60,110,100,max_data_points,light_blue,"Humidity","H2")
 		
 		
+		high_hum_l = sensor_label((950,150),(200,30),light_blue,"High Humidity","HH")
+		low_hum_l = sensor_label((950,250),(200,30),light_blue,"Low Humidity","HL")
+		error_hum = sensor_label((950,350),(200,30),yellow,"Errors","HE")
+		
+		clear_temp_data = button_rec_do((950,550),(200,30),light_blue,"Clear H/L/E",False,clear_hum_tracking)
+		
+		
 		#time and date
 		rec_l_date = date_label((15,15),(100,30),light_blue)
 		rec_l_time = time_label((130,15),(100,30),light_blue)
@@ -1394,7 +1500,7 @@ class humidscreen(basic_screen):
 		relay_status = relay_status_bar((500,15))
 		
 		
-		self.objects = [rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,humid_graph1,humid_graph2,humid_graphA,ha_label,h1_label,h2_label,relay_status]
+		self.objects = [clear_temp_data,error_hum,low_hum_l,high_hum_l,rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,humid_graph1,humid_graph2,humid_graphA,ha_label,h1_label,h2_label,relay_status]
 
 
 class datetimescreen(basic_screen):
@@ -1456,7 +1562,7 @@ class debugscreen(basic_screen):
 		rec_b_debug = button_img_do((self.xmax-415,535),"Debug on.png",donothing)
 		
 		
-		
+		OR_slider = minmax_slider((137,300),50,100,blue,red,5,(950,150),"T")
 		
 		
 		
@@ -1469,7 +1575,7 @@ class debugscreen(basic_screen):
 		rec_l_date = date_label((15,15),(100,30),light_blue)
 		rec_l_time = time_label((130,15),(100,30),light_blue)
 		
-		self.objects = [rec_b_debug,rec_b_MC,rec_b_ToDo,rec_b_humid,rec_b_temp,rec_b_datetime,rec_b_main,rec_l_date,rec_l_time,screen_label,debug_w,serial_label]
+		self.objects = [OR_slider,rec_b_debug,rec_b_MC,rec_b_ToDo,rec_b_humid,rec_b_temp,rec_b_datetime,rec_b_main,rec_l_date,rec_l_time,screen_label,debug_w,serial_label]
 
 
 class ToDoscreen(basic_screen):
@@ -1707,34 +1813,55 @@ def event_handler(event):
 		t1 = SD.split(':')[0].split('/')[0]
 		if t1=='error':
 			data_dict["T1"]=[t1] + data_dict["T1"]
+			data_dict["TE"][0] += 1
 		else:
 			data_dict["T1"]=[float(t1)] + data_dict["T1"]
 			temp_total += float(t1)
 			successful_temp_reads +=1
+			if float(t1)>data_dict["TH"][0]:
+				data_dict["TH"][0]=float(t1)
+			if float(t1)<data_dict["TL"][0]:
+				data_dict["TL"][0]=float(t1)
 		
 		t2 = SD.split(':')[1].split('/')[0]
 		if t2=='error':
 			data_dict["T2"]=[t2] + data_dict["T2"]
+			data_dict["TE"][0] += 1
 		else:
 			data_dict["T2"]=[float(t2)] + data_dict["T2"]
 			temp_total += float(t2)
 			successful_temp_reads +=1
+			if float(t2)>data_dict["TH"][0]:
+				data_dict["TH"][0]=float(t2)
+			if float(t2)<data_dict["TL"][0]:
+				data_dict["TL"][0]=float(t2)
 			
 			
 		h1 = SD.split(':')[0].split('/')[1]
 		if h1=='error':
 			data_dict["H1"]=[h1] + data_dict["H1"]
+			data_dict["HE"][0] += 1
 		else:
 			data_dict["H1"]=[float(h1)] + data_dict["H1"]
 			hum_total += float(h1)
 			successful_hum_reads +=1
+			if float(h1)>data_dict["HH"][0]:
+				data_dict["HH"][0]=float(h1)
+			if float(h1)<data_dict["HL"][0]:
+				data_dict["HL"][0]=float(h1)
 		h2 = SD.split(':')[1].split('/')[1]
 		if h2=='error':
 			data_dict["H2"]=[h2] + data_dict["H2"]
+			data_dict["HE"][0] += 1
+			
 		else:
 			data_dict["H2"]=[float(h2)] + data_dict["H2"]
 			hum_total += float(h2)
 			successful_hum_reads +=1
+			if float(h2)>data_dict["HH"][0]:
+				data_dict["HH"][0]=float(h2)
+			if float(h2)<data_dict["HL"][0]:
+				data_dict["HL"][0]=float(h2)
 		
 		if successful_temp_reads:
 			temp_avg = temp_total/successful_temp_reads
@@ -1852,6 +1979,16 @@ def event_handler(event):
 			for i,n in enumerate(original_RS):
 				mc_s.objects[-1].buttons[i].pressed=bool(int(n))
 			mc_s.objects[-1].buttons[-1].pressed = False
+	
+	elif event.category == 'clearsensordata':
+		if event == clear_temp_tracking:
+			data_dict["TH"][0] = 0
+			data_dict["TL"][0] = 500
+			data_dict["TE"][0] = 0
+		if event == clear_hum_tracking:
+			data_dict["HH"][0] = 0
+			data_dict["HL"][0] = 500
+			data_dict["HE"][0] = 0
 
 
 
