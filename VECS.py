@@ -38,7 +38,7 @@ relay_dict = {1:"Lights",2:"Mister",3:"Fog 1",4:"Fog Fan 1",5:"Fogger 2",6:"Fog 
 manual_control_engaged = False
 ToDo = []
 settings_dict = {}
-overrides = {"NN":"222222222222222",'HN':"222222222222222","CN":"222222222222222", "ND":"222222222222222", "NW":"222222222222222", "HD":"222222222222222", "HW":"222222222222222", "CD":"222222222222222", "CW":"222222222222222"}
+overrides = {"NN":"2222222222222222",'HN':"2222222222222222","CN":"2222222222222222", "ND":"2222222222222222", "NW":"2222222222222222", "HD":"2222222222222222", "HW":"0222222222222222", "CD":"1222222222222222", "CW":"2222222222222222"}
 override_dict = {"T":[80.0,70.5],"H":[99.0,70.0]}
 
 """sensor related stuff"""
@@ -133,6 +133,8 @@ getSensorData = pygame.event.Event(CUSTOMEVENT, category = 'timeevent', action =
 
 clear_temp_tracking = pygame.event.Event(CUSTOMEVENT, category = 'clearsensordata')
 clear_hum_tracking = pygame.event.Event(CUSTOMEVENT, category = 'clearsensordata')
+
+override_select = pygame.event.Event(CUSTOMEVENT, category = 'overrideselect')
 
 donothing = pygame.event.Event(CUSTOMEVENT, category = 'donothing')
 
@@ -555,14 +557,12 @@ class Override_toggle_pad():
 	def __init__(self,loc,button_size,button_color,boarder_color):
 		self.dx,self.dy = button_size*3,button_size*3
 		self.button_names = [['Nominal','Hot','Cold'],['Wet','Hot/Wet','Cold/Wet'],['Dry','Hot/Dry','Cold/Dry']]
-		self.x1 = loc[0]
-		self.y1 = loc[1]
-		self.x2 = self.x1 + self.dx
-		self.y2 = self.y1 +self.dy
+		self.x1,self.y1 = loc
+		self.x2,self.y2 = self.x1 + self.dx,self.y1 +self.dy
 		self.points = (self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2)
 		self.button_color = button_color
 		self.boarder_color = boarder_color
-		self.buttons = [button_rec_tog((self.x1+i*button_size,self.y1+j*button_size),(button_size,button_size),button_color,self.button_names[j][i],False,donothing,donothing) for i in range(3) for j in range(3)]
+		self.buttons = [button_rec_tog((self.x1+i*button_size,self.y1+j*button_size),(button_size,button_size),button_color,self.button_names[j][i],False,override_select,donothing) for i in range(3) for j in range(3)]
 		self.buttons[0].pressed = True
 
 
@@ -577,7 +577,7 @@ class Override_toggle_pad():
 			mouse_pos_x,mouse_pos_y = pygame.mouse.get_pos()
 			for button in self.buttons:
 				if inside_polygon(mouse_pos_x, mouse_pos_y,button.points):
-					button.pressed = True
+					button.do(event)
 				else:
 					button.pressed = False
 			self.draw()
@@ -589,14 +589,14 @@ class Override_toggle_pad():
 
 class button_rec_3state():
 	#a 3 state button with a boarder
-	def __init__(self,loc,size,boarder_color,color1,color2,color3,text,default_state,do_state1,do_state2,do_state3):
+	def __init__(self,loc,size,boarder_color,color0,color1,color2,text,default_state,do_state0,do_state1,do_state2):
 		self.loc = loc
 		self.do_state1 = do_state1
 		self.do_state2 = do_state2
-		self.do_state3 = do_state3
+		self.do_state0 = do_state0
 		self.color1 = color1
 		self.color2=color2
-		self.color3=color3
+		self.color0=color0
 		self.boarder_color = boarder_color
 		self.dx,self.dy = size
 		self.x1 = loc[0]
@@ -606,23 +606,23 @@ class button_rec_3state():
 		self.points = (self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2)
 		self.current_state = default_state #states should be 1,2 or 3
 		self.text = text
-		self.color = [color1,color2,color3][default_state-1]
+		self.color = [color0,color1,color2][default_state]
 		self.boarder = 0 #don't think I even need this for this button
-		self.order = {1:2,2:3,3:1}
+		self.order = {0:1,1:2,2:0}
 
 	def draw(self):
 		
 		
 		
 		
-		if self.current_state == 1:
+		if self.current_state == 0:
+			self.color = self.color0
+
+		elif self.current_state == 1:
 			self.color = self.color1
 
 		elif self.current_state == 2:
 			self.color = self.color2
-
-		elif self.current_state == 3:
-			self.color = self.color3
 			
 		
 		if self.color == black:
@@ -643,7 +643,7 @@ class button_rec_3state():
 		if event.type == pygame.MOUSEBUTTONDOWN:
 			self.current_state = self.order[self.current_state]
 			self.draw()
-			pygame.event.post([self.do_state1,self.do_state2,self.do_state3][self.current_state-1])
+			pygame.event.post([self.do_state0,self.do_state1,self.do_state2][self.current_state])
 
 
 
@@ -1758,15 +1758,15 @@ class Overridescreen(basic_screen):
 		hum_label = text_label((50,560),(137,40),"Humidity",light_blue)
 		OR_slider_hum = minmax_slider((137,300),50,100,blue,red,5,(50,650),"H")
 		
-		OR_table = Override_toggle_pad((250,100),150,light_blue,white)
+		self.OR_table = Override_toggle_pad((250,100),150,light_blue,white)
 		
 		#grid of 3 state buttons for setting relay overrides
-		relay_table = [button_rec_3state((800+j*110,80+i*110),(110,110),light_blue,white,black,green,relay_dict[(1+i)+(8*j)],1,donothing,donothing,donothing) for i in range(8) for j in range(2)]
+		self.relay_table = [button_rec_3state((800+j*110,80+i*110),(110,110),light_blue,black,white,green,relay_dict[(1+i)+(8*j)],2,donothing,donothing,donothing) for i in range(8) for j in range(2)]
 		
 		
 		
 		#all the objects you want to render
-		self.objects = [OR_table,*relay_table, hum_label,temp_label,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,OR_slider_temp,OR_slider_hum]
+		self.objects = [self.OR_table,*self.relay_table, hum_label,temp_label,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,OR_slider_temp,OR_slider_hum]
 
 
 
@@ -2125,7 +2125,14 @@ def event_handler(event):
 			data_dict["HH"][0] = 0
 			data_dict["HL"][0] = 500
 			data_dict["HE"][0] = 0
-
+			
+	#when selecting an override state, it draws the correct relay config
+	elif event.category == "overrideselect":
+		for i,b in enumerate(or_s.OR_table.buttons):
+			if b.pressed == True:
+				for j,btn in enumerate(or_s.relay_table):
+					btn.current_state = int(overrides[['NN','HN','CN','NW','HW','CW','ND','HD','CD'][i]][j])
+					btn.draw()
 
 
 
