@@ -34,7 +34,7 @@ now_adjustment = set_now - sys_now  #adjusted time
 """Relay/ToDo stuff"""
 relay_state = "0000000000000000"
 original_RS = ""
-relay_dict = {1:"Lights",2:"Mister",3:"Fogger 1",4:"Fogger Fan 1",5:"Fogger 2",6:"Fogger Fan 2",7:"Air Circulating Fan",8:"H20 Pump",9:"unused",10:"unused",11:"unused",12:"unused",13:"unused",14:"unused",15:"unused",16:"unused"}
+relay_dict = {1:"Lights",2:"Mister",3:"Fog 1",4:"Fog Fan 1",5:"Fogger 2",6:"Fog Fan 2",7:"Air Fan",8:"H20 Pump",9:"unused",10:"unused",11:"unused",12:"unused",13:"unused",14:"unused",15:"unused",16:"unused"}
 manual_control_engaged = False
 ToDo = []
 settings_dict = {}
@@ -546,7 +546,45 @@ class button_rec_tog():
 			if self.pressed:
 				pygame.event.post(self.do_pressed)
 			else:
-				pygame.event.post(self.do_unpressed)			
+				pygame.event.post(self.do_unpressed)
+
+
+
+#keypad of square buttons, only one of which can be selected at any given time, specifically to be used for controling the override state to be set by the 3 state relay table
+class Override_toggle_pad():
+	def __init__(self,loc,button_size,button_color,boarder_color):
+		self.dx,self.dy = button_size*3,button_size*3
+		self.button_names = [['Nominal','Hot','Cold'],['Wet','Hot/Wet','Cold/Wet'],['Dry','Hot/Dry','Cold/Dry']]
+		self.x1 = loc[0]
+		self.y1 = loc[1]
+		self.x2 = self.x1 + self.dx
+		self.y2 = self.y1 +self.dy
+		self.points = (self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2)
+		self.button_color = button_color
+		self.boarder_color = boarder_color
+		self.buttons = [button_rec_tog((self.x1+i*button_size,self.y1+j*button_size),(button_size,button_size),button_color,self.button_names[j][i],False,donothing,donothing) for i in range(3) for j in range(3)]
+		self.buttons[0].pressed = True
+
+
+	def draw(self):
+		
+		pygame.draw.rect(screen,black, pygame.Rect((self.x1,self.y1,self.dx,self.dy)))
+		for button in self.buttons:
+			button.draw()
+	
+	def do(self,event):
+		if event.type == pygame.MOUSEBUTTONDOWN:
+			mouse_pos_x,mouse_pos_y = pygame.mouse.get_pos()
+			for button in self.buttons:
+				if inside_polygon(mouse_pos_x, mouse_pos_y,button.points):
+					button.pressed = True
+				else:
+					button.pressed = False
+			self.draw()
+
+
+
+
 
 
 class button_rec_3state():
@@ -1704,7 +1742,7 @@ class Overridescreen(basic_screen):
 	def __init__(self):
 		self.xmax = screen_size_x
 		self.ymax = screen_size_y
-		self.name = "ToDo"
+		self.name = "Overrides"
 		
 		#here is all the objects you want in the screen
 		rec_b_main = button_img_do((self.xmax-415,15),"MS off.png",gotoscreen_Main)
@@ -1720,8 +1758,15 @@ class Overridescreen(basic_screen):
 		hum_label = text_label((50,560),(137,40),"Humidity",light_blue)
 		OR_slider_hum = minmax_slider((137,300),50,100,blue,red,5,(50,650),"H")
 		
+		OR_table = Override_toggle_pad((250,100),150,light_blue,white)
+		
+		#grid of 3 state buttons for setting relay overrides
+		relay_table = [button_rec_3state((800+j*110,80+i*110),(110,110),light_blue,white,black,green,relay_dict[(1+i)+(8*j)],1,donothing,donothing,donothing) for i in range(8) for j in range(2)]
+		
+		
+		
 		#all the objects you want to render
-		self.objects = [hum_label,temp_label,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,OR_slider_temp,OR_slider_hum]
+		self.objects = [OR_table,*relay_table, hum_label,temp_label,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,OR_slider_temp,OR_slider_hum]
 
 
 
@@ -2122,3 +2167,4 @@ while True:
 
 	pygame.display.flip()	
 	clock.tick(60)
+
