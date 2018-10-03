@@ -40,6 +40,8 @@ ToDo = []
 settings_dict = {}
 overrides = {"NN":"2222222222222222",'HN':"2222222222222222","CN":"2222222222222222", "ND":"2222222222222222", "NW":"2222222222222222", "HD":"2222222222222222", "HW":"0222222222222222", "CD":"1222222222222222", "CW":"2222222222222222"}
 override_dict = {"T":[80.0,70.5],"H":[99.0,70.0]}
+override_names = ['NN','HN','CN','NW','HW','CW','ND','HD','CD']
+current_override_state = "NN"
 
 """sensor related stuff"""
 num_sensors = 2 #eventually number of connected sensors will be dynamic
@@ -135,6 +137,7 @@ clear_temp_tracking = pygame.event.Event(CUSTOMEVENT, category = 'clearsensordat
 clear_hum_tracking = pygame.event.Event(CUSTOMEVENT, category = 'clearsensordata')
 
 override_select = pygame.event.Event(CUSTOMEVENT, category = 'overrideselect')
+override_set = pygame.event.Event(CUSTOMEVENT, category = 'overrideset')
 
 donothing = pygame.event.Event(CUSTOMEVENT, category = 'donothing')
 
@@ -1450,7 +1453,7 @@ class mainscreen(basic_screen):
 		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",gotoscreen_ToDo)
 		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
 		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
-		rec_b_override = button_rec_do((self.xmax-415,615),(400,80),yellow,"overrides",False,gotoscreen_Override)
+		rec_b_override = button_img_do((self.xmax-415,615),"overrides off.png",gotoscreen_Override)
 		
 		
 		#graphs of tem and humidity
@@ -1472,7 +1475,7 @@ class mainscreen(basic_screen):
 		relay_status = relay_status_bar((500,15))
 		
 		#rotating status display
-		rot_b_status = rot_image_button((self.xmax-300,self.ymax-300),"green_gear.png",1,donothing)
+		rot_b_status = rot_image_button((self.xmax-300,self.ymax-250),"green_gear.png",1,donothing)
 		
 		
 		
@@ -1500,7 +1503,8 @@ class MCscreen(basic_screen):
 		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",gotoscreen_ToDo)
 		rec_b_MC = button_img_do((self.xmax-415,415),"MC on.png",donothing)
 		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
-		
+		rec_b_override = button_img_do((self.xmax-415,615),"overrides off.png",gotoscreen_Override)
+
 		
 		b_list = [[["1",False,donothing,donothing],["2",False,donothing,donothing],["3",False,donothing,donothing]],[["4",False,donothing,donothing],["5",False,donothing,donothing],["6",False,donothing,donothing],["7",False,donothing,donothing]],[["8",False,donothing,donothing],["9",False,donothing,donothing],["0",False,donothing,donothing]],[["*",False,donothing,donothing],["#",False,donothing,donothing],["A",False,donothing,donothing],["B",False,donothing,donothing]],[["C",False,donothing,donothing],["D",False,donothing,donothing],["Reset",False,donothing,donothing]]]
 		hex_p = hex_pad_RS((150,150),80,light_blue)
@@ -1518,7 +1522,7 @@ class MCscreen(basic_screen):
 		
 		
 		
-		self.objects = [rec_l_hum,rec_l_temp,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,relay_status,MC_tog,hex_p]
+		self.objects = [rec_b_override,rec_l_hum,rec_l_temp,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,relay_status,MC_tog,hex_p]
 
 
 class tempscreen(basic_screen):
@@ -1536,6 +1540,9 @@ class tempscreen(basic_screen):
 		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",gotoscreen_ToDo)
 		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
 		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
+		rec_b_override = button_img_do((self.xmax-415,615),"overrides off.png",gotoscreen_Override)
+
+		
 		
 		#Temp graphs. hight should depend on number of sensors and screensize: hight=(screenY-2*top/bottombuffer-2inbetweenbuffer)/(num_sensors+1)
 		ta_label = text_label((300,60),(200,30),"Average Temp",light_blue)
@@ -1558,7 +1565,7 @@ class tempscreen(basic_screen):
 		
 		relay_status = relay_status_bar((500,15))
 		
-		self.objects = [error_temp,clear_temp_data,low_temp_l,high_temp_l,rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,t1_label,temp_graph1,t2_label,temp_graph2,ta_label,temp_graphA,relay_status]
+		self.objects = [rec_b_override,error_temp,clear_temp_data,low_temp_l,high_temp_l,rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,t1_label,temp_graph1,t2_label,temp_graph2,ta_label,temp_graphA,relay_status]
 
 
 class humidscreen(basic_screen):
@@ -1576,7 +1583,8 @@ class humidscreen(basic_screen):
 		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",gotoscreen_ToDo)
 		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
 		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
-		
+		rec_b_override = button_img_do((self.xmax-415,615),"overrides off.png",gotoscreen_Override)
+
 		
 		ha_label = text_label((300,60),(200,30),"Average Humidity",light_blue)
 		humid_graphA = time_graph((15,100),(800,220),60,110,100,max_data_points,light_blue,"Humidity","HA")
@@ -1600,7 +1608,7 @@ class humidscreen(basic_screen):
 		relay_status = relay_status_bar((500,15))
 		
 		
-		self.objects = [clear_temp_data,error_hum,low_hum_l,high_hum_l,rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,humid_graph1,humid_graph2,humid_graphA,ha_label,h1_label,h2_label,relay_status]
+		self.objects = [rec_b_override,clear_temp_data,error_hum,low_hum_l,high_hum_l,rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,humid_graph1,humid_graph2,humid_graphA,ha_label,h1_label,h2_label,relay_status]
 
 
 class datetimescreen(basic_screen):
@@ -1618,7 +1626,8 @@ class datetimescreen(basic_screen):
 		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",gotoscreen_ToDo)
 		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
 		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
-		
+		rec_b_override = button_img_do((self.xmax-415,615),"overrides off.png",gotoscreen_Override)
+
 		
 		month_label = text_label((120,90),(100,25),"Month",light_blue)
 		self.slide_wheel_month = round_slider_int((50,150),100, 20, light_blue, 1,12,1)
@@ -1642,7 +1651,7 @@ class datetimescreen(basic_screen):
 		rec_l_time = time_label((130,15),(100,30),light_blue)
 		
 		
-		self.objects = [rec_b_debug,second_label,minute_label,hour_label,year_label,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time, self.slide_wheel_month,self.slide_wheel_day,self.slide_wheel_year,self.slide_wheel_hour,self.slide_wheel_minute,self.slide_wheel_second,rec_b_getTime,rec_b_setTime,month_label,day_label]
+		self.objects = [rec_b_override,rec_b_debug,second_label,minute_label,hour_label,year_label,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time, self.slide_wheel_month,self.slide_wheel_day,self.slide_wheel_year,self.slide_wheel_hour,self.slide_wheel_minute,self.slide_wheel_second,rec_b_getTime,rec_b_setTime,month_label,day_label]
 
 #currently the debugging screen
 class debugscreen(basic_screen):
@@ -1660,6 +1669,9 @@ class debugscreen(basic_screen):
 		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",gotoscreen_ToDo)
 		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
 		rec_b_debug = button_img_do((self.xmax-415,535),"Debug on.png",donothing)
+		rec_b_override = button_img_do((self.xmax-415,615),"overrides off.png",gotoscreen_Override)
+
+		
 		
 		#testing 3 state button
 		example_3state = button_rec_3state((self.xmax-500,615),(100,100),light_blue,white,black,green,"test",1,donothing,donothing,donothing)
@@ -1675,7 +1687,7 @@ class debugscreen(basic_screen):
 		rec_l_date = date_label((15,15),(100,30),light_blue)
 		rec_l_time = time_label((130,15),(100,30),light_blue)
 		
-		self.objects = [example_3state,rec_b_debug,rec_b_MC,rec_b_ToDo,rec_b_humid,rec_b_temp,rec_b_datetime,rec_b_main,rec_l_date,rec_l_time,screen_label,debug_w,serial_label]
+		self.objects = [rec_b_override,example_3state,rec_b_debug,rec_b_MC,rec_b_ToDo,rec_b_humid,rec_b_temp,rec_b_datetime,rec_b_main,rec_l_date,rec_l_time,screen_label,debug_w,serial_label]
 
 
 class ToDoscreen(basic_screen):
@@ -1692,6 +1704,8 @@ class ToDoscreen(basic_screen):
 		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo on.png",donothing)
 		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
 		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
+		rec_b_override = button_img_do((self.xmax-415,615),"overrides off.png",gotoscreen_Override)
+		
 		
 		self.todo_display = ToDo_window((100,100),settings_dict["ToDo"])
 		img_b_new = button_img_do((630,115),"add.png",ToDo_new)
@@ -1705,7 +1719,7 @@ class ToDoscreen(basic_screen):
 		rec_l_time = time_label((130,15),(100,30),light_blue)
 		
 		
-		self.objects = [rec_b_debug,img_b_new,img_b_del,img_b_edit,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,self.todo_display]
+		self.objects = [rec_b_override,rec_b_debug,img_b_new,img_b_del,img_b_edit,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,self.todo_display]
 
 #different from other screens. Must be passed an entry from ToDo list. Use [0,0,0,0,0] if "new"
 class ToDoEditor(basic_screen):
@@ -1752,6 +1766,8 @@ class Overridescreen(basic_screen):
 		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",donothing)
 		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
 		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
+		rec_b_override = button_img_do((self.xmax-415,615),"overrides on.png",donothing)
+		
 		
 		temp_label = text_label((50,60),(137,40),"Temp",light_blue)
 		OR_slider_temp = minmax_slider((137,300),50,100,blue,red,5,(50,150),"T")
@@ -1761,12 +1777,12 @@ class Overridescreen(basic_screen):
 		self.OR_table = Override_toggle_pad((250,100),150,light_blue,white)
 		
 		#grid of 3 state buttons for setting relay overrides
-		self.relay_table = [button_rec_3state((800+j*110,80+i*110),(110,110),light_blue,black,white,green,relay_dict[(1+i)+(8*j)],2,donothing,donothing,donothing) for i in range(8) for j in range(2)]
+		self.relay_table = [button_rec_3state((800+j*110,80+i*110),(110,110),light_blue,black,white,green,relay_dict[(1+i)+(8*j)],2,override_set,override_set,override_set) for i in range(8) for j in range(2)]
 		
 		
 		
 		#all the objects you want to render
-		self.objects = [self.OR_table,*self.relay_table, hum_label,temp_label,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,OR_slider_temp,OR_slider_hum]
+		self.objects = [self.OR_table,*self.relay_table, hum_label,temp_label,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_override,rec_b_ToDo,OR_slider_temp,OR_slider_hum]
 
 
 
@@ -1928,6 +1944,8 @@ def event_handler(event):
 	global serial_comm
 	global manual_control_engaged
 	global relay_state
+	global override_names 
+	global current_override_state
 	#events without categories must come first in the elif chain
 	if event.type == SENSOR_EVENT:
 		#eventually this will be a get-sensor-data to the arduino and sorting of the received data into individual lists and an average
@@ -2130,9 +2148,14 @@ def event_handler(event):
 	elif event.category == "overrideselect":
 		for i,b in enumerate(or_s.OR_table.buttons):
 			if b.pressed == True:
+				current_override_state = override_names[i]
 				for j,btn in enumerate(or_s.relay_table):
-					btn.current_state = int(overrides[['NN','HN','CN','NW','HW','CW','ND','HD','CD'][i]][j])
+					btn.current_state = int(overrides[override_names[i]][j])
 					btn.draw()
+	
+	elif event.category == "overrideset":
+		overrides[current_override_state] = "".join(str(btn.current_state) for btn in or_s.relay_table)
+
 
 
 
