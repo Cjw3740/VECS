@@ -133,8 +133,8 @@ MC_reset = pygame.event.Event(CUSTOMEVENT, category = 'manualcontrol', action = 
 
 getSensorData = pygame.event.Event(CUSTOMEVENT, category = 'timeevent', action = 'getsensordata')
 
-clear_temp_tracking = pygame.event.Event(CUSTOMEVENT, category = 'clearsensordata')
-clear_hum_tracking = pygame.event.Event(CUSTOMEVENT, category = 'clearsensordata')
+clear_temp_tracking = pygame.event.Event(CUSTOMEVENT, category = 'clearsensordata',ation = "temp")
+clear_hum_tracking = pygame.event.Event(CUSTOMEVENT, category = 'clearsensordata',action = "hum")
 
 override_select = pygame.event.Event(CUSTOMEVENT, category = 'overrideselect')
 override_set = pygame.event.Event(CUSTOMEVENT, category = 'overrideset')
@@ -1056,7 +1056,7 @@ class ellipse_toggle_pad():
 					for button in self.buttons:
 						if button == btn:
 							button.pressed = True
-							self.selected = self.buttons.index(button)+1
+							self.selected = self.buttons.index(button)
 						else:
 							button.pressed = False
 						
@@ -1353,7 +1353,7 @@ class ToDo_window():
 				else:
 					hms.append(str(element))
 			
-			text_entry = hms[0]+":"+hms[1]+":"+hms[2]+"  "+relay_dict[entry[3]]+"  "+rs
+			text_entry = hms[0]+":"+hms[1]+":"+hms[2]+"  "+relay_dict[entry[3]+1]+"  "+rs
 			txt = msg_obj.render(text_entry,True, white,black)
 			screen.blit(txt,(self.x1+10,self.y1+(count*self.entry_hight)+5))
 			count += 1
@@ -1370,7 +1370,7 @@ class ToDo_window():
 				if inside_polygon(mouse_pos_x, mouse_pos_y,entry_points):
 					self.selected = entry
 					self.draw()
-					pygame.draw.rect(screen,green, pygame.Rect((e_x1,e_y1,e_dx,e_dy)),1)
+					pygame.draw.rect(screen,green, pygame.Rect((e_x1,e_y1,e_dx,e_dy)),1) #this needs tio be moved into the draw command, based on whats selected
 					
 				count += 1
 
@@ -1554,10 +1554,10 @@ class tempscreen(basic_screen):
 		
 		#max/min temp
 		high_temp_l = sensor_label((950,150),(200,30),light_blue,"High Temp","TH")
-		low_temp_l = sensor_label((950,250),(200,30),light_blue,"Low Temp","TL")
-		error_temp = sensor_label((950,350),(200,30),yellow,"Errors","TE")
+		low_temp_l = sensor_label((950,200),(200,30),light_blue,"Low Temp","TL")
+		error_temp = sensor_label((950,250),(200,30),yellow,"Errors","TE")
 		
-		clear_temp_data = button_rec_do((950,550),(200,30),light_blue,"Clear H/L",False,clear_temp_tracking)
+		clear_temp_data = button_rec_do((950,350),(200,90),purple,"Clear H/L/E",False,clear_temp_tracking)
 
 		#time and date
 		rec_l_date = date_label((15,15),(100,30),light_blue)
@@ -1595,10 +1595,10 @@ class humidscreen(basic_screen):
 		
 		
 		high_hum_l = sensor_label((950,150),(200,30),light_blue,"High Humidity","HH")
-		low_hum_l = sensor_label((950,250),(200,30),light_blue,"Low Humidity","HL")
-		error_hum = sensor_label((950,350),(200,30),yellow,"Errors","HE")
+		low_hum_l = sensor_label((950,200),(200,30),light_blue,"Low Humidity","HL")
+		error_hum = sensor_label((950,250),(200,30),yellow,"Errors","HE")
 		
-		clear_temp_data = button_rec_do((950,550),(200,30),light_blue,"Clear H/L/E",False,clear_hum_tracking)
+		clear_temp_data = button_rec_do((950,350),(200,90),purple,"Clear H/L/E",False,clear_hum_tracking)
 		
 		
 		#time and date
@@ -1670,13 +1670,6 @@ class debugscreen(basic_screen):
 		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
 		rec_b_debug = button_img_do((self.xmax-415,535),"Debug on.png",donothing)
 		rec_b_override = button_img_do((self.xmax-415,615),"overrides off.png",gotoscreen_Override)
-
-		
-		
-		#testing 3 state button
-		example_3state = button_rec_3state((self.xmax-500,615),(100,100),light_blue,white,black,green,"test",1,donothing,donothing,donothing)
-		
-		
 		
 		screen_label = text_label((self.xmax/2-100,20),(200,35),"Debugging",light_blue)
 		
@@ -1687,7 +1680,7 @@ class debugscreen(basic_screen):
 		rec_l_date = date_label((15,15),(100,30),light_blue)
 		rec_l_time = time_label((130,15),(100,30),light_blue)
 		
-		self.objects = [rec_b_override,example_3state,rec_b_debug,rec_b_MC,rec_b_ToDo,rec_b_humid,rec_b_temp,rec_b_datetime,rec_b_main,rec_l_date,rec_l_time,screen_label,debug_w,serial_label]
+		self.objects = [rec_b_override,rec_b_debug,rec_b_MC,rec_b_ToDo,rec_b_humid,rec_b_temp,rec_b_datetime,rec_b_main,rec_l_date,rec_l_time,screen_label,debug_w,serial_label]
 
 
 class ToDoscreen(basic_screen):
@@ -1741,10 +1734,11 @@ class ToDoEditor(basic_screen):
 		img_b_mis = button_img_do((1000,500),"MIS.png",ToDo_MIS)
 		img_b_cancel = button_img_do((1000,600),"Cancel.png",gotoscreen_ToDo)
 		
+		#list of relays
 		b_list = [[[1,"1"],[2,"2"],[3,"3"],[4,"4"],[5,"5"],[6,"6"],[7,"7"],[8,"8"]],[[9,"9"],[10,"0"],[11,"A"],[12,"B"],[13,"C"],[14,"D"],[15,"*"],[16,"#"]]]
 		self.round_tog_pad_relay = ellipse_toggle_pad((100,100),(75,75),5,b_list,light_blue,entry[3])
 		
-		
+		#on/off
 		b_list2 = [[[0,"OFF"],[1,"ON"]]]
 		self.round_tog_pad_state = ellipse_toggle_pad((100,300),(75,75),5,b_list2,light_blue,entry[4])
 		
@@ -1813,6 +1807,7 @@ M is the manual control indicator bit 0 is off, 1 is MC engaged
 def arduino_sim(cmd_type,cmd_specific):
 	global serial_comm
 	global now_adjustment
+	global sys_now
 	global manual_control_engaged
 	if cmd_type =="get":
 		if cmd_specific == "all":
@@ -1851,6 +1846,7 @@ def arduino_sim(cmd_type,cmd_specific):
 			second = datetime_s.slide_wheel_second.dial_output.zfill(2)
 			send_string = "<settime:"+year+":"+month+":"+day+":"+hour+":"+minute+":"+second+">"
 			
+			sys_now = datetime.datetime.now() #gets the systems version of time now
 			set_now = datetime.datetime(int(year), int(month), int(day), int(hour), int(minute), int(second), 0) #default time, to be overwritten by time obtained from Arduino
 			now_adjustment = set_now - sys_now  #adjusted time
 			
@@ -2066,6 +2062,7 @@ def event_handler(event):
 		
 			arduino_sim("set","datetime")
 			"""
+			#this is what was here before I created arduino sim and real
 			year = datetime_s.slide_wheel_year.dial_output
 			month = datetime_s.slide_wheel_month.dial_output.zfill(2)
 			day = datetime_s.slide_wheel_day.dial_output.zfill(2)
