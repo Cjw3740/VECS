@@ -1,4 +1,4 @@
-"""Dependancies: pygame and pyserial"""
+"""Must have also downloaded: pygame and pyserial"""
 
 
 
@@ -942,7 +942,8 @@ class hex_pad_RS():
 	def __init__(self,initial_point,side_len,color):
 		self.xo,self.yo = initial_point
 		self.side_len = side_len
-		self.buttons_list = [[["1",False,donothing,donothing],["2",False,donothing,donothing],["3",False,donothing,donothing]],[["4",False,donothing,donothing],["5",False,donothing,donothing],["6",False,donothing,donothing],["7",False,donothing,donothing]],[["8",False,donothing,donothing],["9",False,donothing,donothing],["0",False,donothing,donothing]],[["*",False,donothing,donothing],["#",False,donothing,donothing],["A",False,donothing,donothing],["B",False,donothing,donothing]],[["C",False,donothing,donothing],["D",False,donothing,donothing],["Reset",False,donothing,donothing]]]
+		self.buttons_list = [[[relay_dict[1+i+(3*j)],False,donothing,donothing] for i in range(3+j%2)] for j in range(5)]
+		self.buttons_list[-1][-1][0] = "Reset"
 		self.rows = int(len(self.buttons_list))
 		self.cols_list = [int(len(self.buttons_list[i])) for i in range(self.rows)]
 		self.color = color
@@ -955,7 +956,7 @@ class hex_pad_RS():
 			for i in range(len(self.buttons_list[j])):
 				self.buttons.append(button_hex_tog((self.xo+int(2.2*i*self.hx)-int(1.12*(j%2)*self.hx),self.yo+int(3.3*j*self.hy)),self.side_len,self.color,self.buttons_list[j][i][0],self.buttons_list[j][i][1],self.buttons_list[j][i][2],self.buttons_list[j][i][3]))
 		
-		self.buttons[-1].do_pressed = MC_reset
+		self.buttons[-1].do_pressed = MC_reset #sets the last button in the list to be the reset button
 		
 	def draw(self):
 		for i,key in enumerate(self.buttons):
@@ -963,7 +964,7 @@ class hex_pad_RS():
 				key.pressed = int(relay_state[i])
 			key.draw()
 	
-	#why does draw work without relay_state being declared global in it but do does not?
+
 	def do(self,event):
 		global relay_state
 		if event.type == UPDATE_TIME_EVENT:
@@ -1505,13 +1506,11 @@ class MCscreen(basic_screen):
 		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
 		rec_b_override = button_img_do((self.xmax-415,615),"overrides off.png",gotoscreen_Override)
 
-		
-		b_list = [[["1",False,donothing,donothing],["2",False,donothing,donothing],["3",False,donothing,donothing]],[["4",False,donothing,donothing],["5",False,donothing,donothing],["6",False,donothing,donothing],["7",False,donothing,donothing]],[["8",False,donothing,donothing],["9",False,donothing,donothing],["0",False,donothing,donothing]],[["*",False,donothing,donothing],["#",False,donothing,donothing],["A",False,donothing,donothing],["B",False,donothing,donothing]],[["C",False,donothing,donothing],["D",False,donothing,donothing],["Reset",False,donothing,donothing]]]
 		hex_p = hex_pad_RS((150,150),80,light_blue)
 		
 		relay_status = relay_status_bar((500,15))
 		
-		MC_tog = button_rec_tog((800,100),(250,200),yellow,"MANUAL CONTROL",False,MC_enable,MC_disable)
+		MC_tog = button_rec_tog((800,350),(250,200),yellow,"MANUAL CONTROL",False,MC_enable,MC_disable)
 		
 		#time and date
 		rec_l_date = date_label((15,15),(100,30),light_blue)
@@ -1642,8 +1641,8 @@ class datetimescreen(basic_screen):
 		second_label = text_label((720,490),(100,25),"Seconds",light_blue)
 		self.slide_wheel_second = round_slider_int((650,550),100, 20, light_blue, 0,59,0)
 		
-		rec_b_getTime = button_img_do((self.xmax-530,695),"gettime.png",getTime)
-		rec_b_setTime = button_img_do((self.xmax-530,785),"settime.png",setTime)
+		rec_b_getTime = button_img_do((90,self.ymax - 150),"gettime.png",getTime)
+		rec_b_setTime = button_img_do((500,self.ymax - 150),"settime.png",setTime)
 		
 		
 		#time and date
@@ -1724,23 +1723,25 @@ class ToDoEditor(basic_screen):
 		
 		#here is all the objects you want in the screen
 		
-		hour_label = text_label((120,490),(100,25),"Hours",light_blue)
-		self.slide_wheel_hour = round_slider_int((50,550),100, 20, light_blue, 0,23,self.entry[0])
-		minute_label = text_label((420,490),(100,25),"Minutes",light_blue)
-		self.slide_wheel_minute = round_slider_int((350,550),100, 20, light_blue, 0,59,self.entry[1])
-		second_label = text_label((720,490),(100,25),"Seconds",light_blue)
-		self.slide_wheel_second = round_slider_int((650,550),100, 20, light_blue, 0,59,self.entry[2])
+		#these positions should be based on the screen dimensions
+		hour_label = text_label((270,490),(100,25),"Hours",light_blue)
+		self.slide_wheel_hour = round_slider_int((140,550),150, 30, light_blue, 0,23,self.entry[0])
+		minute_label = text_label((730,490),(100,25),"Minutes",light_blue)
+		self.slide_wheel_minute = round_slider_int((600,550),150, 30, light_blue, 0,59,self.entry[1])
+		second_label = text_label((1230,490),(100,25),"Seconds",light_blue)
+		self.slide_wheel_second = round_slider_int((1100,550),150, 30, light_blue, 0,59,self.entry[2])
 		
-		img_b_mis = button_img_do((1000,500),"MIS.png",ToDo_MIS)
-		img_b_cancel = button_img_do((1000,600),"Cancel.png",gotoscreen_ToDo)
+		img_b_mis = button_img_do((1200,100),"MIS.png",ToDo_MIS)
+		img_b_cancel = button_img_do((1300,200),"Cancel.png",gotoscreen_ToDo)
 		
 		#list of relays
-		b_list = [[[1,"1"],[2,"2"],[3,"3"],[4,"4"],[5,"5"],[6,"6"],[7,"7"],[8,"8"]],[[9,"9"],[10,"0"],[11,"A"],[12,"B"],[13,"C"],[14,"D"],[15,"*"],[16,"#"]]]
-		self.round_tog_pad_relay = ellipse_toggle_pad((100,100),(75,75),5,b_list,light_blue,entry[3])
+		b_list = [[[i+(8*j),relay_dict[1+i+(8*j)]] for i in range(8)] for j in range(2)]
+		#b_list = [[[0,"1"],[1,"2"],[2,"3"],[3,"4"],[4,"5"],[5,"6"],[6,"7"],[7,"8"]],[[8,"9"],[9,"0"],[10,"A"],[11,"B"],[12,"C"],[13,"D"],[14,"*"],[15,"#"]]]
+		self.round_tog_pad_relay = ellipse_toggle_pad((100,50),(120,120),5,b_list,light_blue,entry[3])
 		
 		#on/off
 		b_list2 = [[[0,"OFF"],[1,"ON"]]]
-		self.round_tog_pad_state = ellipse_toggle_pad((100,300),(75,75),5,b_list2,light_blue,entry[4])
+		self.round_tog_pad_state = ellipse_toggle_pad((100,350),(90,90),10,b_list2,light_blue,entry[4])
 		
 		self.objects = [self.round_tog_pad_state,self.round_tog_pad_relay,img_b_mis,img_b_cancel, self.slide_wheel_second,self.slide_wheel_minute,self.slide_wheel_hour,second_label,minute_label,hour_label,second_label,minute_label,hour_label]
 
@@ -2194,4 +2195,3 @@ while True:
 
 	pygame.display.flip()	
 	clock.tick(60)
-
