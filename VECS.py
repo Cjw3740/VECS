@@ -118,6 +118,7 @@ gotoscreen_DateTime = pygame.event.Event(CUSTOMEVENT, category = 'changescreen',
 gotoscreen_ToDoset = pygame.event.Event(CUSTOMEVENT, category = 'changescreen', screen = 'ToDoset')
 gotoscreen_ToDochange = pygame.event.Event(CUSTOMEVENT, category = 'changescreen', screen = 'ToDochange')
 gotoscreen_Override = pygame.event.Event(CUSTOMEVENT, category = 'changescreen', screen = 'Override')
+gotoscreen_Settings = pygame.event.Event(CUSTOMEVENT, category = 'changescreen', screen = 'Settings')
 
 ToDo_change = pygame.event.Event(CUSTOMEVENT, category = 'todochange', action = 'edit')
 ToDo_new = pygame.event.Event(CUSTOMEVENT, category = 'todochange', action = 'new')
@@ -979,6 +980,97 @@ class hex_pad_RS():
 			
 
 
+class keyboard():
+	def __init__(self,loc,size,color,do_on_complete):
+		self.x1,self.y1 = loc
+		self.dx,self.dy = size
+		self.x2,self.y2 = self.x1+self.dx,self.y1+self.dy
+		self.points = ((self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2)) 
+		self.keys_lower = '1234567890qwertyuiopasdfghjklzxcvbnm. '
+		self.keys_upper = '!@#$%^&*()QWERTYUIOPASDFGHJKLZXCVBNM? '
+		self.special_keys = ['BckSpc','CAPS','Space','Cancel','Enter']
+		self.output = []
+		self.caps = False
+		self.max_len = 10
+		self.key_x = int(self.dx/10)
+		self.key_y = int(self.dy/5)
+		self.color = color
+		self.do_on_complete = do_on_complete
+		
+		#building the keyboard as a single demensional list of buttons
+		#lower: 1234567890qwertyuiopasdfghjklzxcvbnm. bckspc caps caps cancel space enter
+		#upper !@#$%^&*()QWERTYUIOPASDFGHJKLZXCVBNM? bckspc caps caps cancel space enter
+		#the letter keys don't technically need to be initialized to any particular value, as it will re-write with actual values with every draw
+		self.keys = [button_rec_do((self.x1+(i*self.key_x),self.y1+j*self.key_y),(self.key_x,self.key_y),self.color,self.keys_lower[i+(10*j)],False,donothing) for j in range(3) for i in range(10)]
+		del(self.keys[-1])
+
+		fourth_row = [button_rec_do((self.x1+(i*self.key_x),self.y1+3*self.key_y),(self.key_x,self.key_y),self.color,self.keys_lower[i+(10*3)-2],False,donothing) for i in range(1,9)] #adding 4th row keys
+		for b in fourth_row:
+			self.keys.append(b)
+		
+		self.keys.append(button_rec_do((self.x1+9*self.key_x,self.y1+2*self.key_y),(self.key_x,self.key_y),self.color,self.special_keys[0],False,donothing)) #adding backspace key
+		self.keys.append(button_rec_do((self.x1,self.y1+3*self.key_y),(self.key_x,self.key_y),self.color,self.special_keys[1],False,donothing)) #adding left CAPS key
+		self.keys.append(button_rec_do((self.x1+9*self.key_x,self.y1+3*self.key_y),(self.key_x,self.key_y),self.color,self.special_keys[1],False,donothing)) #adding right CAPS key
+		self.keys.append(button_rec_do((self.x1,self.y1+4*self.key_y),(2*self.key_x,self.key_y),self.color,self.special_keys[3],False,donothing)) #adding Cancel
+		self.keys.append(button_rec_do((self.x1+2*self.key_x,self.y1+4*self.key_y),(6*self.key_x,self.key_y),self.color,self.special_keys[2],False,donothing)) #adding Space
+		self.keys.append(button_rec_do((self.x1+8*self.key_x,self.y1+4*self.key_y),(2*self.key_x,self.key_y),self.color,self.special_keys[4],False,donothing)) #adding Enter
+		
+		
+		
+		
+	def draw(self):
+		
+		#Could seperate out the output window rather than redrawing on every mouse click, esxcept the CAPS keys
+		pygame.draw.rect(screen,black, pygame.Rect((self.x1,self.y1-115,210,50)))
+		pygame.draw.rect(screen,self.color, pygame.Rect((self.x1,self.y1-115,210,50)),1)
+		txt = msg_obj.render("".join(self.output),True, self.color, black)
+		screen.blit(txt,(self.x1+5,self.y1-100))
+		
+		
+		for i,k in enumerate(self.keys):
+			if i<=36:
+				if self.caps == True:
+					k.text = self.keys_upper[i]
+				else:
+					k.text = self.keys_lower[i]
+		
+		
+		
+		for btn in self.keys:
+			btn.draw()
+		
+	def do(self,event):
+		if event.type == pygame.MOUSEBUTTONDOWN:
+			mouse_pos_x,mouse_pos_y = pygame.mouse.get_pos()
+			for btn in self.keys:
+				if inside_polygon(mouse_pos_x, mouse_pos_y,btn.points):
+					if btn.text == "CAPS":
+						self.keys[38].pressed = not self.keys[38].pressed
+						self.keys[39].pressed = not self.keys[39].pressed
+						self.caps = not self.caps
+						
+					elif btn.text == "BckSpc":
+						if len(self.output):
+							del(self.output[-1])
+						
+					elif btn.text == "Enter":
+						pass
+						
+					elif btn.text == "Cancel":
+						pass
+						
+						
+					elif btn.text == "Space":
+						if len(self.output)<10:  #this should be based on the actual size of the text...
+							self.output.append(" ")
+					
+					elif len(self.output)<10:
+						self.output.append(btn.text)
+			self.draw()
+
+
+
+
 
 
 
@@ -1476,7 +1568,7 @@ class mainscreen(basic_screen):
 		relay_status = relay_status_bar((500,15))
 		
 		#rotating status display
-		rot_b_status = rot_image_button((self.xmax-300,self.ymax-250),"green_gear.png",1,donothing)
+		rot_b_status = rot_image_button((self.xmax-300,self.ymax-250),"green_gear.png",1,gotoscreen_Settings)
 		
 		
 		
@@ -1657,7 +1749,7 @@ class debugscreen(basic_screen):
 	def __init__(self):
 		self.xmax = screen_size_x
 		self.ymax = screen_size_y
-		self.name = "Settings"
+		self.name = "Debugging"
 		
 
 		#here is all the objects you want in the screen
@@ -1780,7 +1872,26 @@ class Overridescreen(basic_screen):
 		self.objects = [self.OR_table,*self.relay_table, hum_label,temp_label,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_override,rec_b_ToDo,OR_slider_temp,OR_slider_hum]
 
 
+class settingsscreen(basic_screen):
+	def __init__(self):
+		self.xmax = screen_size_x
+		self.ymax = screen_size_y
+		self.name = "Settings"
+		
 
+		#here is all the objects you want in the screen
+		rec_b_main = button_img_do((self.xmax-415,15),"MS off.png",gotoscreen_Main)
+		rec_b_datetime = button_img_do((self.xmax-415,95),"DT off.png",gotoscreen_DateTime)
+		rec_b_temp = button_img_do((self.xmax-415,175),"Temp off.png",gotoscreen_Temp)
+		rec_b_humid = button_img_do((self.xmax-415,255),"Humidity off.png",gotoscreen_Humid)
+		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",gotoscreen_ToDo)
+		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
+		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",donothing)
+		rec_b_override = button_img_do((self.xmax-415,615),"overrides off.png",gotoscreen_Override)
+		
+		relay_name_keyboard = keyboard((10,210),(self.xmax-500,400),light_blue,donothing)
+		
+		self.objects = [rec_b_override,rec_b_debug,rec_b_MC,rec_b_ToDo,rec_b_humid,rec_b_temp,rec_b_datetime,rec_b_main,relay_name_keyboard]
 
 
 
@@ -1924,7 +2035,8 @@ datetime_s = datetimescreen()
 paas_s = paasscreen()
 ToDo_s = ToDoscreen()
 or_s = Overridescreen()
-screen_dict = {"Main":main_s,"MC":mc_s,"Debug":debug_s,"Temp":temp_s,"Humid":humid_s,"DateTime":datetime_s,"paas":paas_s,"ToDo":ToDo_s,"Override":or_s}
+settings_s = settingsscreen()
+screen_dict = {"Main":main_s,"MC":mc_s,"Debug":debug_s,"Temp":temp_s,"Humid":humid_s,"DateTime":datetime_s,"paas":paas_s,"ToDo":ToDo_s,"Override":or_s,"Settings":settings_s}
 
 
 current_screen = main_s
@@ -2060,8 +2172,10 @@ def event_handler(event):
 				
 
 		elif event == setTime:
-		
-			arduino_sim("set","datetime")
+			if int(current_screen.slide_wheel_year.dial_output)==2011 and int(current_screen.slide_wheel_month.dial_output)==3 and int(current_screen.slide_wheel_day.dial_output)==12:
+				current_screen = paas_s
+			else:
+				arduino_sim("set","datetime")
 			"""
 			#this is what was here before I created arduino sim and real
 			year = datetime_s.slide_wheel_year.dial_output
@@ -2105,6 +2219,8 @@ def event_handler(event):
 				current_screen.draw()
 		if event == ToDo_MIS:
 			new_entry = [int(current_screen.slide_wheel_hour.dial_output),int(current_screen.slide_wheel_minute.dial_output),int(current_screen.slide_wheel_second.dial_output),int(current_screen.round_tog_pad_relay.selected),int(current_screen.round_tog_pad_state.selected)]
+			
+			
 			if td_screen == "new":
 				settings_dict["ToDo"].append(new_entry)
 				settings_dict["ToDo"] = sortlist(settings_dict["ToDo"])
@@ -2195,3 +2311,4 @@ while True:
 
 	pygame.display.flip()	
 	clock.tick(60)
+
