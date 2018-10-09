@@ -34,12 +34,18 @@ now_adjustment = set_now - sys_now  #adjusted time
 """Relay/ToDo stuff"""
 relay_state = "0000000000000000"
 original_RS = ""
-relay_dict = {1:"Lights",2:"Mister",3:"Fog 1",4:"Fog Fan 1",5:"Fogger 2",6:"Fog Fan 2",7:"Air Fan",8:"H20 Pump",9:"unused",10:"unused",11:"unused",12:"unused",13:"unused",14:"unused",15:"unused",16:"unused"}
+
 manual_control_engaged = False
 ToDo = []
 settings_dict = {}
+
+
 overrides = {"NN":"2222222222222222",'HN':"2222222222222222","CN":"2222222222222222", "ND":"2222222222222222", "NW":"2222222222222222", "HD":"2222222222222222", "HW":"0222222222222222", "CD":"1222222222222222", "CW":"2222222222222222"}
 override_dict = {"T":[80.0,70.5],"H":[99.0,70.0]}
+relay_dict = {1:"Lights",2:"Mister",3:"Fog 1",4:"Fog Fan 1",5:"Fogger 2",6:"Fog Fan 2",7:"Air Fan",8:"H20 Pump",9:"unused",10:"unused",11:"unused",12:"unused",13:"unused",14:"unused",15:"unused",16:"unused"}
+
+
+
 override_names = ['NN','HN','CN','NW','HW','CW','ND','HD','CD']
 current_override_state = "NN"
 
@@ -51,7 +57,7 @@ num_sensors = 2 #eventually number of connected sensors will be dynamic
 #max number of points to save in each small sensor reading list
 max_data_points = 100
 #dict for holdingt sensor data TE = example temp. Initialize with dummy value so that plot works on new startup?
-data_dict = {"TA":[75.0,76.0,75.5,78.0,78.5,79.0,80.0,81.0,79.2,78.9,"Error","Error",77.1,"Error",76.8],
+data_dict = {
 "T1":[],
 "H1":[],
 "T2":[],
@@ -119,6 +125,7 @@ gotoscreen_ToDoset = pygame.event.Event(CUSTOMEVENT, category = 'changescreen', 
 gotoscreen_ToDochange = pygame.event.Event(CUSTOMEVENT, category = 'changescreen', screen = 'ToDochange')
 gotoscreen_Override = pygame.event.Event(CUSTOMEVENT, category = 'changescreen', screen = 'Override')
 gotoscreen_Settings = pygame.event.Event(CUSTOMEVENT, category = 'changescreen', screen = 'Settings')
+gotoscreen_Relaynames = pygame.event.Event(CUSTOMEVENT, category = 'changescreen', screen = 'Relaynames')
 
 ToDo_change = pygame.event.Event(CUSTOMEVENT, category = 'todochange', action = 'edit')
 ToDo_new = pygame.event.Event(CUSTOMEVENT, category = 'todochange', action = 'new')
@@ -139,6 +146,8 @@ clear_hum_tracking = pygame.event.Event(CUSTOMEVENT, category = 'clearsensordata
 
 override_select = pygame.event.Event(CUSTOMEVENT, category = 'overrideselect')
 override_set = pygame.event.Event(CUSTOMEVENT, category = 'overrideset')
+
+save_settings_manual = pygame.event.Event(CUSTOMEVENT, category = 'savesettings')
 
 donothing = pygame.event.Event(CUSTOMEVENT, category = 'donothing')
 
@@ -299,20 +308,24 @@ def next_task(todo_list,now):
 
 def save_settings():
 	global settings_dict
-	with open('SAVE.txt','w') as outfile:
+	with open('Settings.txt','w') as outfile:
 		json.dump(settings_dict, outfile)
 		outfile.close
 
 #need to add backup settings to use if no save fileis found
 def load_settings():
 	global settings_dict
-	with open('SAVE.txt','r') as infile:
+	with open('Settings.txt','r') as infile:
 		settings_dict = json.load(infile)
 		infile.close
 
 load_settings()
 
-
+def save_datalog():
+	name = ".".join([data_log[-1][0:18],'txt'])
+	with open(name,'w') as outfile:
+		json.dump(data_log, outfile)
+		outfile.close
 
 
 #to take the string version of relay state and change individual "bits"
@@ -375,6 +388,8 @@ class button_hex_tog():
 
 		
 	def draw(self):
+		self.button_text_size = font.size(self.text)
+		self.button_txt_loc = (self.center[0]-self.button_text_size[0]/2,self.center[1]-self.button_text_size[1]/2) #sets up text options for button label
 		pygame.draw.polygon(screen,self.color,self.points,1) # draws outer hex
 		if self.pressed:
 			pygame.draw.polygon(screen,self.color,self.points_inner,0)
@@ -569,11 +584,10 @@ class Override_toggle_pad():
 		self.buttons = [button_rec_tog((self.x1+i*button_size,self.y1+j*button_size),(button_size,button_size),button_color,self.button_names[j][i],False,override_select,donothing) for i in range(3) for j in range(3)]
 		self.buttons[0].pressed = True
 
-
 	def draw(self):
 		
 		pygame.draw.rect(screen,black, pygame.Rect((self.x1,self.y1,self.dx,self.dy)))
-		for button in self.buttons:
+		for i,button in enumerate(self.buttons):
 			button.draw()
 	
 	def do(self,event):
@@ -587,6 +601,38 @@ class Override_toggle_pad():
 			self.draw()
 
 
+class Override_relay_pad():
+	def __init__(self,loc,btn_size):
+		self.btn_x,self.btn_y = btn_size[0],btn_size[1]
+		self.dx,self.dy = (self.btn_x*2,self.btn_y*8)
+		#self.button_names = [['Nominal','Hot','Cold'],['Wet','Hot/Wet','Cold/Wet'],['Dry','Hot/Dry','Cold/Dry']]
+		self.x1,self.y1 = loc
+		self.x2,self.y2 = self.x1 + self.dx,self.y1 +self.dy
+		self.points = (self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2)
+		#self.button_color = button_color
+		#self.boarder_color = boarder_color
+		#grid of 3 state buttons for setting relay overrides
+		self.buttons = [button_rec_3state((self.x1+j*self.btn_x,self.y1+i*self.btn_y),(self.btn_x,self.btn_y),light_blue,black,white,green,settings_dict["relay_dict"][str((1+i)+(8*j))],2,override_set,override_set,override_set) for j in range(2) for i in range(8)]
+		
+		#self.buttons = [button_rec_tog((self.x1+i*button_size,self.y1+j*button_size),(button_size,button_size),button_color,self.button_names[j][i],False,override_select,donothing) for i in range(3) for j in range(3)]
+		self.buttons[0].pressed = True
+
+	def draw(self):
+		
+		pygame.draw.rect(screen,black, pygame.Rect((self.x1,self.y1,self.dx,self.dy)))
+		for i,button in enumerate(self.buttons):
+			button.text = settings_dict["relay_dict"][str(i+1)]
+			button.draw()
+	
+	def do(self,event):
+		if event.type == pygame.MOUSEBUTTONDOWN:
+			mouse_pos_x,mouse_pos_y = pygame.mouse.get_pos()
+			for button in self.buttons:
+				if inside_polygon(mouse_pos_x, mouse_pos_y,button.points):
+					button.do(event)
+				else:
+					button.pressed = False
+			self.draw()
 
 
 
@@ -848,7 +894,7 @@ class minmax_slider(control):
 
 
 	def draw(self):
-		global override_dict
+		global settings_dict
 		pygame.draw.rect(screen,black,pygame.Rect((self.x1,self.y1-self.text_size[1],self.dx,self.dy+self.text_size[1]+20)),0) #blacks out box
 		pygame.draw.line(screen,white,(self.center,self.y1),(self.center,self.y2),1) #draws slider center line
 		pygame.draw.line(screen,white,(self.center-5,self.y1),(self.center+5,self.y1),1) #draws top horizontal bar
@@ -860,9 +906,9 @@ class minmax_slider(control):
 		screen.blit(max_txt,(self.center-font.size(str(self.max_val))[0]/2,self.y1-self.slider_txt_box[1]-17+font.size(str(self.max_val))[1]/2))
 		screen.blit(min_txt,(self.center-font.size(str(self.min_val))[0]/2,self.y2+20))
 		
-		right_pos_y = self.mv(override_dict[self.target][0])
+		right_pos_y = self.mv(settings_dict["override_dict"][self.target][0])
 		right_triangle = [(self.center+1,right_pos_y),(self.center+10,right_pos_y-10),(self.center+10,right_pos_y+10)]
-		left_pos_y = self.mv(override_dict[self.target][1])
+		left_pos_y = self.mv(settings_dict["override_dict"][self.target][1])
 		left_triangle = [(self.center-1,left_pos_y),(self.center-10,left_pos_y-10),(self.center-10,left_pos_y+10)]
 		
 		pygame.draw.polygon(screen, red,right_triangle,0) #right slider triangle
@@ -870,23 +916,23 @@ class minmax_slider(control):
 		pygame.draw.polygon(screen, blue,left_triangle,0) #left slider triangle
 		pygame.draw.rect(screen,blue,pygame.Rect(self.center-12,left_pos_y-13,-font.size('100.0')[0]-4,self.text_size[1]+6),1) #right slider text box
 		
-		slider_right_txt = msg_obj.render(str(round(override_dict[self.target][0],1)),True,white,black)
-		slider_left_txt = msg_obj.render(str(round(override_dict[self.target][1],1)),True,white,black)
+		slider_right_txt = msg_obj.render(str(round(settings_dict["override_dict"][self.target][0],1)),True,white,black)
+		slider_left_txt = msg_obj.render(str(round(settings_dict["override_dict"][self.target][1],1)),True,white,black)
 		
 		screen.blit(slider_right_txt, (self.center+20,right_pos_y-8))
 		screen.blit(slider_left_txt, (self.center-60,left_pos_y-8))
 		
 
 	def do(self,event):
-		global override_dict
+		global settings_dict
 		mouse_pos_x,mouse_pos_y = pygame.mouse.get_pos()
 		if pygame.mouse.get_pressed()[0] and inside_polygon(mouse_pos_x, mouse_pos_y,self.points):
 			if mouse_pos_x > self.center:
-				override_dict[self.target][0] = max((1/self.m)*(mouse_pos_y - self.b),self.min_val+self.min_diff)
-				override_dict[self.target][1] = min(override_dict[self.target][1],override_dict[self.target][0]-self.min_diff)
+				settings_dict["override_dict"][self.target][0] = max((1/self.m)*(mouse_pos_y - self.b),self.min_val+self.min_diff)
+				settings_dict["override_dict"][self.target][1] = min(settings_dict["override_dict"][self.target][1],settings_dict["override_dict"][self.target][0]-self.min_diff)
 			else:
-				override_dict[self.target][1] = min((1/self.m)*(mouse_pos_y - self.b),self.max_val-self.min_diff)
-				override_dict[self.target][0] = max(override_dict[self.target][0],override_dict[self.target][1]+self.min_diff)
+				settings_dict["override_dict"][self.target][1] = min((1/self.m)*(mouse_pos_y - self.b),self.max_val-self.min_diff)
+				settings_dict["override_dict"][self.target][0] = max(settings_dict["override_dict"][self.target][0],settings_dict["override_dict"][self.target][1]+self.min_diff)
 			self.draw()
 
 
@@ -943,7 +989,7 @@ class hex_pad_RS():
 	def __init__(self,initial_point,side_len,color):
 		self.xo,self.yo = initial_point
 		self.side_len = side_len
-		self.buttons_list = [[[relay_dict[1+i+(3*j)],False,donothing,donothing] for i in range(3+j%2)] for j in range(5)]
+		self.buttons_list = [[[settings_dict["relay_dict"][str(1+i+(3*j))],False,donothing,donothing] for i in range(3+j%2)] for j in range(5)]
 		self.buttons_list[-1][-1][0] = "Reset"
 		self.rows = int(len(self.buttons_list))
 		self.cols_list = [int(len(self.buttons_list[i])) for i in range(self.rows)]
@@ -963,6 +1009,7 @@ class hex_pad_RS():
 		for i,key in enumerate(self.buttons):
 			if i < len(relay_state):
 				key.pressed = int(relay_state[i])
+				key.text = settings_dict["relay_dict"][str(i+1)]
 			key.draw()
 	
 
@@ -1020,11 +1067,11 @@ class keyboard():
 		
 	def draw(self):
 		
-		#Could seperate out the output window rather than redrawing on every mouse click, esxcept the CAPS keys
-		pygame.draw.rect(screen,black, pygame.Rect((self.x1,self.y1-115,210,50)))
-		pygame.draw.rect(screen,self.color, pygame.Rect((self.x1,self.y1-115,210,50)),1)
+		#Could seperate out the output window rather than redrawing every key on every mouse click, esxcept the CAPS keys
+		pygame.draw.rect(screen,black, pygame.Rect((self.x1+int(self.dx/2)-105,self.y1-115,210,50)))
+		pygame.draw.rect(screen,self.color, pygame.Rect((self.x1+int(self.dx/2)-105,self.y1-115,210,50)),1)
 		txt = msg_obj.render("".join(self.output),True, self.color, black)
-		screen.blit(txt,(self.x1+5,self.y1-100))
+		screen.blit(txt,(self.x1+int(self.dx/2)-100,self.y1-100))
 		
 		
 		for i,k in enumerate(self.keys):
@@ -1053,11 +1100,13 @@ class keyboard():
 						if len(self.output):
 							del(self.output[-1])
 						
-					elif btn.text == "Enter":
-						pass
+					elif btn.text == "Enter": #this manually resets the text in the relay dict and the relay pad ont his screen. Need to tie other relay pad's text into relay dict directly so they update on draw... did so for MC relay pad. Need to create custom class for override relay table
+						settings_dict["relay_dict"][str(current_screen.round_tog_pad_relay.selected+1)] = "".join(self.output)
+						current_screen.round_tog_pad_relay.buttons[current_screen.round_tog_pad_relay.selected].text = settings_dict["relay_dict"][str(current_screen.round_tog_pad_relay.selected+1)] 
+						current_screen.round_tog_pad_relay.draw()
 						
 					elif btn.text == "Cancel":
-						pass
+						self.output = []
 						
 						
 					elif btn.text == "Space":
@@ -1154,6 +1203,59 @@ class ellipse_toggle_pad():
 							button.pressed = False
 						
 			self.draw()
+
+
+
+
+"""example button list: 
+b_list = [[[1,"1"],[2'"2"][3,"Three"]],
+[[4,"4],[5,"5"]],
+[[6,"6"]]]
+number to output then label
+"""
+class ellipse_relay_pad():
+	def __init__(self,loc,size,seperation,button_list,color,initialy_selected):
+		self.loc = self.x1,self.y1 = loc
+		self.size = size
+		self.color = color
+		self.s = seperation
+		self.b_list = button_list
+		self.rows = int(len(button_list))
+		self.cols_list = [int(len(button_list[i])) for i in range(self.rows)]
+		self.x2 = self.x1+2*(self.size[0]/2+self.s)*max(self.cols_list)
+		self.y2 = self.y1+2*(self.size[1]/2+self.s)*self.rows
+		self.points = (self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2)
+		self.buttons = b_list = [[[i+(8*j),settings_dict["relay_dict"][str(1+i+(8*j))]] for i in range(8)] for j in range(2)]
+		#self.output = "none"
+		self.selected = initialy_selected
+		for j in range(self.rows):
+			for i in range(len(self.b_list[j])): 
+				if self.b_list[j][i][0]== self.selected:
+					istate = True
+				else:
+					istate = False
+				self.buttons.append(button_ellipse_do((self.x1+int(i*2*(self.size[0]/2+self.s)),self.y1+j*2*(self.size[1]/2+self.s)),self.size,self.color,self.b_list[j][i][1],istate,donothing))
+				
+					
+		
+	def draw(self):
+		for b in self.buttons:
+			b.draw()
+			
+	def do(self,event):
+		if event.type == pygame.MOUSEBUTTONDOWN:
+			mouse_pos_x,mouse_pos_y = pygame.mouse.get_pos()
+			for btn in self.buttons:
+				if inside_polygon(mouse_pos_x, mouse_pos_y,btn.points):
+					for button in self.buttons:
+						if button == btn:
+							button.pressed = True
+							self.selected = self.buttons.index(button)
+						else:
+							button.pressed = False
+						
+			self.draw()
+
 
 
 
@@ -1293,8 +1395,8 @@ class time_graph():
 		self.dt = round(self.dx/(x_tics-1))
 		self.target = target
 		
-		self.h_ov = override_dict[target[0]][0]
-		self.l_ov = override_dict[target[0]][1]
+		self.h_ov = settings_dict["override_dict"][target[0]][0]
+		self.l_ov = settings_dict["override_dict"][target[0]][1]
 		
 			
 		
@@ -1307,9 +1409,9 @@ class time_graph():
 		
 		
 	def plot(self):
-		global override_dict
-		self.h_ov = override_dict[self.target[0]][0]
-		self.l_ov = override_dict[self.target[0]][1]
+		global settings_dict
+		self.h_ov = settings_dict["override_dict"][self.target[0]][0]
+		self.l_ov = settings_dict["override_dict"][self.target[0]][1]
 		
 		pygame.draw.rect(screen,black, pygame.Rect((self.x1+1,self.y1+1,self.dx-2,self.dy-2)),0) #blacks out graph area
 		pygame.draw.rect(screen,black, pygame.Rect((self.x2+1,self.y1-16,85,self.dy+32)),0) #blacks out area to right of graph, currently seperate to make it clear, should ultimatly be combined with above line
@@ -1446,7 +1548,7 @@ class ToDo_window():
 				else:
 					hms.append(str(element))
 			
-			text_entry = hms[0]+":"+hms[1]+":"+hms[2]+"  "+relay_dict[entry[3]+1]+"  "+rs
+			text_entry = hms[0]+":"+hms[1]+":"+hms[2]+"  "+settings_dict["relay_dict"][str(entry[3]+1)]+"  "+rs
 			txt = msg_obj.render(text_entry,True, white,black)
 			screen.blit(txt,(self.x1+10,self.y1+(count*self.entry_hight)+5))
 			count += 1
@@ -1611,9 +1713,9 @@ class MCscreen(basic_screen):
 		rec_l_temp = sensor_label((250,15),(200,30),light_blue,"Temperature","TA")
 		rec_l_hum = sensor_label((950,15),(200,30),light_blue,"Humidity","TA")
 		
+		rot_b_status = rot_image_button((self.xmax-300,self.ymax-250),"green_gear.png",1,gotoscreen_Settings)
 		
-		
-		self.objects = [rec_b_override,rec_l_hum,rec_l_temp,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,relay_status,MC_tog,hex_p]
+		self.objects = [rot_b_status,rec_b_override,rec_l_hum,rec_l_temp,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,relay_status,MC_tog,hex_p]
 
 
 class tempscreen(basic_screen):
@@ -1656,7 +1758,9 @@ class tempscreen(basic_screen):
 		
 		relay_status = relay_status_bar((500,15))
 		
-		self.objects = [rec_b_override,error_temp,clear_temp_data,low_temp_l,high_temp_l,rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,t1_label,temp_graph1,t2_label,temp_graph2,ta_label,temp_graphA,relay_status]
+		rot_b_status = rot_image_button((self.xmax-300,self.ymax-250),"green_gear.png",1,gotoscreen_Settings)
+		
+		self.objects = [rot_b_status,rec_b_override,error_temp,clear_temp_data,low_temp_l,high_temp_l,rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,t1_label,temp_graph1,t2_label,temp_graph2,ta_label,temp_graphA,relay_status]
 
 
 class humidscreen(basic_screen):
@@ -1698,8 +1802,9 @@ class humidscreen(basic_screen):
 		
 		relay_status = relay_status_bar((500,15))
 		
+		rot_b_status = rot_image_button((self.xmax-300,self.ymax-250),"green_gear.png",1,gotoscreen_Settings)
 		
-		self.objects = [rec_b_override,clear_temp_data,error_hum,low_hum_l,high_hum_l,rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,humid_graph1,humid_graph2,humid_graphA,ha_label,h1_label,h2_label,relay_status]
+		self.objects = [rot_b_status,rec_b_override,clear_temp_data,error_hum,low_hum_l,high_hum_l,rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,humid_graph1,humid_graph2,humid_graphA,ha_label,h1_label,h2_label,relay_status]
 
 
 class datetimescreen(basic_screen):
@@ -1741,8 +1846,10 @@ class datetimescreen(basic_screen):
 		rec_l_date = date_label((15,15),(100,30),light_blue)
 		rec_l_time = time_label((130,15),(100,30),light_blue)
 		
+		rot_b_status = rot_image_button((self.xmax-300,self.ymax-250),"green_gear.png",1,gotoscreen_Settings)
+
 		
-		self.objects = [rec_b_override,rec_b_debug,second_label,minute_label,hour_label,year_label,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time, self.slide_wheel_month,self.slide_wheel_day,self.slide_wheel_year,self.slide_wheel_hour,self.slide_wheel_minute,self.slide_wheel_second,rec_b_getTime,rec_b_setTime,month_label,day_label]
+		self.objects = [rot_b_status,rec_b_override,rec_b_debug,second_label,minute_label,hour_label,year_label,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time, self.slide_wheel_month,self.slide_wheel_day,self.slide_wheel_year,self.slide_wheel_hour,self.slide_wheel_minute,self.slide_wheel_second,rec_b_getTime,rec_b_setTime,month_label,day_label]
 
 #currently the debugging screen
 class debugscreen(basic_screen):
@@ -1771,7 +1878,9 @@ class debugscreen(basic_screen):
 		rec_l_date = date_label((15,15),(100,30),light_blue)
 		rec_l_time = time_label((130,15),(100,30),light_blue)
 		
-		self.objects = [rec_b_override,rec_b_debug,rec_b_MC,rec_b_ToDo,rec_b_humid,rec_b_temp,rec_b_datetime,rec_b_main,rec_l_date,rec_l_time,screen_label,debug_w,serial_label]
+		rot_b_status = rot_image_button((self.xmax-300,self.ymax-250),"green_gear.png",1,gotoscreen_Settings)
+		
+		self.objects = [rot_b_status,rec_b_override,rec_b_debug,rec_b_MC,rec_b_ToDo,rec_b_humid,rec_b_temp,rec_b_datetime,rec_b_main,rec_l_date,rec_l_time,screen_label,debug_w,serial_label]
 
 
 class ToDoscreen(basic_screen):
@@ -1802,8 +1911,9 @@ class ToDoscreen(basic_screen):
 		rec_l_date = date_label((15,15),(100,30),light_blue)
 		rec_l_time = time_label((130,15),(100,30),light_blue)
 		
+		rot_b_status = rot_image_button((self.xmax-300,self.ymax-250),"green_gear.png",1,gotoscreen_Settings)
 		
-		self.objects = [rec_b_override,rec_b_debug,img_b_new,img_b_del,img_b_edit,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,self.todo_display]
+		self.objects = [rot_b_status,rec_b_override,rec_b_debug,img_b_new,img_b_del,img_b_edit,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,self.todo_display]
 
 #different from other screens. Must be passed an entry from ToDo list. Use [0,0,0,0,0] if "new"
 class ToDoEditor(basic_screen):
@@ -1827,8 +1937,7 @@ class ToDoEditor(basic_screen):
 		img_b_cancel = button_img_do((1300,200),"Cancel.png",gotoscreen_ToDo)
 		
 		#list of relays
-		b_list = [[[i+(8*j),relay_dict[1+i+(8*j)]] for i in range(8)] for j in range(2)]
-		#b_list = [[[0,"1"],[1,"2"],[2,"3"],[3,"4"],[4,"5"],[5,"6"],[6,"7"],[7,"8"]],[[8,"9"],[9,"0"],[10,"A"],[11,"B"],[12,"C"],[13,"D"],[14,"*"],[15,"#"]]]
+		b_list = [[[i+(8*j),settings_dict["relay_dict"][str(1+i+(8*j))]] for i in range(8)] for j in range(2)]
 		self.round_tog_pad_relay = ellipse_toggle_pad((100,50),(120,120),5,b_list,light_blue,entry[3])
 		
 		#on/off
@@ -1850,7 +1959,7 @@ class Overridescreen(basic_screen):
 		rec_b_datetime = button_img_do((self.xmax-415,95),"DT off.png",gotoscreen_DateTime)
 		rec_b_temp = button_img_do((self.xmax-415,175),"Temp off.png",gotoscreen_Temp)
 		rec_b_humid = button_img_do((self.xmax-415,255),"Humidity off.png",gotoscreen_Humid)
-		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",donothing)
+		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",gotoscreen_ToDo)
 		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
 		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
 		rec_b_override = button_img_do((self.xmax-415,615),"overrides on.png",donothing)
@@ -1861,15 +1970,15 @@ class Overridescreen(basic_screen):
 		hum_label = text_label((50,560),(137,40),"Humidity",light_blue)
 		OR_slider_hum = minmax_slider((137,300),50,100,blue,red,5,(50,650),"H")
 		
-		self.OR_table = Override_toggle_pad((250,100),150,light_blue,white)
+		self.OR_table = Override_toggle_pad((250,300),150,light_blue,white)
 		
 		#grid of 3 state buttons for setting relay overrides
-		self.relay_table = [button_rec_3state((800+j*110,80+i*110),(110,110),light_blue,black,white,green,relay_dict[(1+i)+(8*j)],2,override_set,override_set,override_set) for i in range(8) for j in range(2)]
+		self.relay_pad = Override_relay_pad((800,80),(110,110))
 		
-		
+		rot_b_status = rot_image_button((self.xmax-300,self.ymax-250),"green_gear.png",1,gotoscreen_Settings)
 		
 		#all the objects you want to render
-		self.objects = [self.OR_table,*self.relay_table, hum_label,temp_label,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_override,rec_b_ToDo,OR_slider_temp,OR_slider_hum]
+		self.objects = [rot_b_status,self.OR_table,self.relay_pad, hum_label,temp_label,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_override,rec_b_ToDo,OR_slider_temp,OR_slider_hum]
 
 
 class settingsscreen(basic_screen):
@@ -1889,9 +1998,42 @@ class settingsscreen(basic_screen):
 		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",donothing)
 		rec_b_override = button_img_do((self.xmax-415,615),"overrides off.png",gotoscreen_Override)
 		
-		relay_name_keyboard = keyboard((10,210),(self.xmax-500,400),light_blue,donothing)
+		rec_b_relaynames = button_ellipse_do((100,100),(200,100),red,"Rename Relays",False,gotoscreen_Relaynames) #takes you to a screen where you can rename the individual relays
+		rec_b_sensorsettings = button_ellipse_do((100,250),(200,100),blue,"Sensor Settings",False,donothing) #will eventually take you to a screen where you can set the frequency of get all calls to the arduino, manually dump the data_log, ect. 
+		rec_b_manualsave = button_ellipse_do((100,400),(200,100),purple,"Save Settings",False,save_settings_manual) #manually saves settings. It automatically saves on exit but this would prevent loss in the event of a crash
 		
-		self.objects = [rec_b_override,rec_b_debug,rec_b_MC,rec_b_ToDo,rec_b_humid,rec_b_temp,rec_b_datetime,rec_b_main,relay_name_keyboard]
+		
+		self.objects = [rec_b_manualsave,rec_b_sensorsettings,rec_b_override,rec_b_debug,rec_b_MC,rec_b_ToDo,rec_b_humid,rec_b_temp,rec_b_datetime,rec_b_main,rec_b_relaynames]
+
+
+
+class relayrenamescreen(basic_screen):
+	def __init__(self):
+		self.xmax = screen_size_x
+		self.ymax = screen_size_y
+		self.name = "Relay Names"
+		
+
+		#here is all the objects you want in the screen
+		rec_b_main = button_img_do((self.xmax-415,15),"MS off.png",gotoscreen_Main)
+		rec_b_datetime = button_img_do((self.xmax-415,95),"DT off.png",gotoscreen_DateTime)
+		rec_b_temp = button_img_do((self.xmax-415,175),"Temp off.png",gotoscreen_Temp)
+		rec_b_humid = button_img_do((self.xmax-415,255),"Humidity off.png",gotoscreen_Humid)
+		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",gotoscreen_ToDo)
+		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
+		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
+		rec_b_override = button_img_do((self.xmax-415,615),"overrides off.png",gotoscreen_Override)
+		
+		
+		#list of relays # toggle pad
+		b_list = [[[i+(8*j),settings_dict["relay_dict"][str(1+i+(8*j))]] for i in range(8)] for j in range(2)]
+		self.round_tog_pad_relay = ellipse_toggle_pad((50,50),(120,120),5,b_list,light_blue,0)
+		
+		
+		
+		relay_name_keyboard = keyboard((10,500),(self.xmax-500,400),light_blue,donothing)
+		
+		self.objects = [rec_b_override,rec_b_debug,rec_b_MC,rec_b_ToDo,rec_b_humid,rec_b_temp,rec_b_datetime,rec_b_main,relay_name_keyboard,self.round_tog_pad_relay]
 
 
 
@@ -2036,7 +2178,8 @@ paas_s = paasscreen()
 ToDo_s = ToDoscreen()
 or_s = Overridescreen()
 settings_s = settingsscreen()
-screen_dict = {"Main":main_s,"MC":mc_s,"Debug":debug_s,"Temp":temp_s,"Humid":humid_s,"DateTime":datetime_s,"paas":paas_s,"ToDo":ToDo_s,"Override":or_s,"Settings":settings_s}
+relaynames_s = relayrenamescreen()
+screen_dict = {"Main":main_s,"MC":mc_s,"Debug":debug_s,"Temp":temp_s,"Humid":humid_s,"DateTime":datetime_s,"paas":paas_s,"ToDo":ToDo_s,"Override":or_s,"Settings":settings_s,"Relaynames":relaynames_s}
 
 
 current_screen = main_s
@@ -2263,12 +2406,15 @@ def event_handler(event):
 		for i,b in enumerate(or_s.OR_table.buttons):
 			if b.pressed == True:
 				current_override_state = override_names[i]
-				for j,btn in enumerate(or_s.relay_table):
-					btn.current_state = int(overrides[override_names[i]][j])
+				for j,btn in enumerate(or_s.relay_pad.buttons):
+					btn.current_state = int(settings_dict["overrides"][override_names[i]][j])
 					btn.draw()
 	
 	elif event.category == "overrideset":
-		overrides[current_override_state] = "".join(str(btn.current_state) for btn in or_s.relay_table)
+		settings_dict["overrides"][current_override_state] = "".join(str(btn.current_state) for btn in or_s.relay_pad.buttons)
+	
+	elif event.category == "savesettings":
+		save_settings()
 
 
 
@@ -2299,6 +2445,7 @@ while True:
 		
 		if event.type == pygame.QUIT:
 			save_settings()
+
 			exit()
 			
 		elif event.type == CUSTOMEVENT or event.type == SENSOR_EVENT:
@@ -2311,4 +2458,3 @@ while True:
 
 	pygame.display.flip()	
 	clock.tick(60)
-
