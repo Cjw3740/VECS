@@ -21,9 +21,22 @@ screen = pygame.display.set_mode((screen_size_x,screen_size_y))
 time_freq = 100 #freq for updating the time 1000 = 1sec
 sensor_freq = 1000 #get sensor val. 1000 = 1sec, should be set to 5 sec for actual use
 
-#log of serial communications
+#serial communications stuff
 serial_comm = ["startup"]
-serial_comm_max_len = 30
+serial_comm_max_len = 40
+serial_comm_established = False
+Arduino_address = '/dev/ttyACM0'
+
+
+try:
+	ser = serial.Serial(Arduino_address, 9600,timeout=1) # Establish the connection on a specific port, must know the name of the arduino port
+	serial_comm.append("serial comm sucessfull")
+	serial_comm_established = True
+except:
+	print('serial comm failed')
+	serial_comm.append("serial comm failed")
+	serial_comm_established = False
+
 
 print("Getting time")
 sys_now = datetime.datetime.now() #gets the systems version of time now
@@ -88,7 +101,7 @@ Save every 24 hours at/near midnight.
 Override states: NN - nominal, HN - hot, CN - cold, ND - dry, NW - wet, HD -hot/dry, HW - hot/wet, CD - cold/dry, CW - cold/wet
 inbetween saves the data should be stored in the varialble 'data_log'"""
 
-data_log = []
+data_log = ["2018:10:10:03:02:01-0000000000000000-75.5/65.5:76.0/66.0-0-NN"]
 
 
 print("Setting up text options")
@@ -126,6 +139,7 @@ gotoscreen_ToDochange = pygame.event.Event(CUSTOMEVENT, category = 'changescreen
 gotoscreen_Override = pygame.event.Event(CUSTOMEVENT, category = 'changescreen', screen = 'Override')
 gotoscreen_Settings = pygame.event.Event(CUSTOMEVENT, category = 'changescreen', screen = 'Settings')
 gotoscreen_Relaynames = pygame.event.Event(CUSTOMEVENT, category = 'changescreen', screen = 'Relaynames')
+gotoscreen_Serial = pygame.event.Event(CUSTOMEVENT, category = 'changescreen', screen = 'Serial')
 
 ToDo_change = pygame.event.Event(CUSTOMEVENT, category = 'todochange', action = 'edit')
 ToDo_new = pygame.event.Event(CUSTOMEVENT, category = 'todochange', action = 'new')
@@ -144,8 +158,13 @@ getSensorData = pygame.event.Event(CUSTOMEVENT, category = 'timeevent', action =
 clear_temp_tracking = pygame.event.Event(CUSTOMEVENT, category = 'clearsensordata',ation = "temp")
 clear_hum_tracking = pygame.event.Event(CUSTOMEVENT, category = 'clearsensordata',action = "hum")
 
+start_serial_comms = pygame.event.Event(CUSTOMEVENT, category = 'serial',action = "start")
+stop_serial_comms = pygame.event.Event(CUSTOMEVENT, category = 'serial',action = "stop")
+ORrelay_update = pygame.event.Event(CUSTOMEVENT, category = 'serial',action = "uploadOR")
+
 override_select = pygame.event.Event(CUSTOMEVENT, category = 'overrideselect')
 override_set = pygame.event.Event(CUSTOMEVENT, category = 'overrideset')
+
 
 save_settings_manual = pygame.event.Event(CUSTOMEVENT, category = 'savesettings')
 
@@ -162,28 +181,77 @@ SENSOR_EVENT = pygame.USEREVENT+3
 def serial_send(str_data):
 	global serial_comm
 	serial_comm.append("Pi:" + str_data)
-	ser.write(str_data.encode())
+	if serial_comm_established:
+		ser.write(str_data.encode())
+	else:
+		serial_comm.append("Serial Comms down")
 	if len(serial_comm) > serial_comm_max_len:
-		del serial_comm[0]
+			del serial_comm[0]
 
 """for tracking incomming serial communications from arduino. To be used in place of ser.readline"""
 def serial_recieve():
 	global serial_comm
-	recieved = ser.readline().decode('ascii')[:-1]   #the slice removes the newline
-	serial_comm.append("Arduino:" + recieved[:-1])
+	if serial_comm_established:
+		
+		recieved = ser.readline().decode('ascii')[:-1]   #the slice removes the newline
+		serial_comm.append("Arduino:" + recieved[:-1])
+		return recieved
+	else:
+		return False
+		#serial_comm.append("Serial Comms down")
 	if len(serial_comm) > serial_comm_max_len:
-		del serial_comm[0]
-	return recieved
+			del serial_comm[0]
 
 
 """sets up serial com with arduino"""
 def serial_comm_start():
 	try:
 		global ser
-		ser = serial.Serial('/dev/ttyACM0', 9600,timeout=1) # Establish the connection on a specific port, must know the name of the arduino port
+		ser = serial.Serial(Arduino_address, 9600,timeout=1) # Establish the connection on a specific port, must know the name of the arduino port
 		serial_comm.append("serial comm sucessfull")
+		serial_comm_established = True
 	except:
 		serial_comm.append("serial comm failed")
+
+
+
+#decided to allways have a response from the Arduino, so might as well combine the send/recieve functions into one
+def arduino_send_rec(str_msg):
+	global serial_comm
+	serial_comm.append("Pi:" + str_msg)
+	if serial_comm_established:
+		try:
+			ser.write(str_msg.encode())
+			try:
+				recieved = ser.readline().decode('ascii')[:-2]   #the slice removes the newline
+				if not recieved:
+					serial_comm.append("No response")
+				else:
+					serial_comm.append("Arduino:" + recieved)
+				
+				return recieved
+			except:
+				serial_comm.append("Recieve failed")
+				
+		except:
+			serial_comm.append("Send failed")
+		
+	else:
+		serial_comm.append("Serial Comms down")
+	
+	while len(serial_comm) > serial_comm_max_len:
+		del serial_comm[0]
+	
+	
+	
+	
+	
+
+
+
+
+
+
 
 
 def get_str_now():
@@ -1035,7 +1103,7 @@ class keyboard():
 		self.points = ((self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2)) 
 		self.keys_lower = '1234567890qwertyuiopasdfghjklzxcvbnm. '
 		self.keys_upper = '!@#$%^&*()QWERTYUIOPASDFGHJKLZXCVBNM? '
-		self.special_keys = ['BckSpc','CAPS','Space','Cancel','Enter']
+		self.special_keys = ['BckSpc','CAPS','Space','Clear','Enter']
 		self.output = []
 		self.caps = False
 		self.max_len = 10
@@ -1105,7 +1173,7 @@ class keyboard():
 						current_screen.round_tog_pad_relay.buttons[current_screen.round_tog_pad_relay.selected].text = settings_dict["relay_dict"][str(current_screen.round_tog_pad_relay.selected+1)] 
 						current_screen.round_tog_pad_relay.draw()
 						
-					elif btn.text == "Cancel":
+					elif btn.text == 'Clear':
 						self.output = []
 						
 						
@@ -1307,6 +1375,7 @@ class sensor_label():
 		pygame.draw.rect(screen,self.color, pygame.Rect((self.x1,self.y1,self.dx,self.dy)),1)
 		if len(data_dict[self.target]):
 			self.text = self.label + ': ' + str(data_dict[self.target][0])
+
 		else: 
 			self.text = "0"
 		self.txt_loc = (self.x1 + self.dx/2 - font.size(self.text)[0]/2,self.y1 + self.dy/2 - font.size(self.text)[1]/2)
@@ -1489,11 +1558,11 @@ class time_graph():
 			self.plot()
 
 
-class debug_window():
+class serial_window():
 	def __init__(self,pos,ser_com):
 		self.x1,self.y1 = pos
 		self.data = ser_com
-		self.x2,self.y2 = (self.x1+700,self.y1+((serial_comm_max_len+1)*font.size("Example")[1]))
+		self.x2,self.y2 = (self.x1+780,self.y1+((serial_comm_max_len+1)*font.size("Example")[1]))
 		self.dx = self.x2-self.x1
 		self.dy = self.y2-self.y1
 		self.points = ((self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2))
@@ -1872,7 +1941,7 @@ class debugscreen(basic_screen):
 		screen_label = text_label((self.xmax/2-100,20),(200,35),"Debugging",light_blue)
 		
 		serial_label = text_label((175,65),(200,30),"Serial Log", white)
-		debug_w = debug_window((50,100),serial_comm)
+		debug_w = serial_window((50,100),serial_comm)
 		
 		#time and date
 		rec_l_date = date_label((15,15),(100,30),light_blue)
@@ -1970,15 +2039,19 @@ class Overridescreen(basic_screen):
 		hum_label = text_label((50,560),(137,40),"Humidity",light_blue)
 		OR_slider_hum = minmax_slider((137,300),50,100,blue,red,5,(50,650),"H")
 		
-		self.OR_table = Override_toggle_pad((250,300),150,light_blue,white)
+		self.OR_table = Override_toggle_pad((250,200),150,light_blue,white) #lists the various override states in a 3 by 3 grid
 		
-		#grid of 3 state buttons for setting relay overrides
-		self.relay_pad = Override_relay_pad((800,80),(110,110))
+		self.relay_pad = Override_relay_pad((800,80),(110,110)) #the list of 3 state buttons for the override relay states
+		
+		rec_b_upload = button_rec_do((250,700),(450,150),orange,"Upload to Arduino",False,donothing)
+		
+		
+		
 		
 		rot_b_status = rot_image_button((self.xmax-300,self.ymax-250),"green_gear.png",1,gotoscreen_Settings)
 		
 		#all the objects you want to render
-		self.objects = [rot_b_status,self.OR_table,self.relay_pad, hum_label,temp_label,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_override,rec_b_ToDo,OR_slider_temp,OR_slider_hum]
+		self.objects = [rec_b_upload,rot_b_status,self.OR_table,self.relay_pad, hum_label,temp_label,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_override,rec_b_ToDo,OR_slider_temp,OR_slider_hum]
 
 
 class settingsscreen(basic_screen):
@@ -1990,20 +2063,56 @@ class settingsscreen(basic_screen):
 
 		#here is all the objects you want in the screen
 		rec_b_main = button_img_do((self.xmax-415,15),"MS off.png",gotoscreen_Main)
+		rec_b_temp = button_img_do((self.xmax-415,95),"Temp off.png",gotoscreen_Temp)
+		rec_b_humid = button_img_do((self.xmax-415,175),"Humidity off.png",gotoscreen_Humid)
+		rec_b_ToDo = button_img_do((self.xmax-415,255),"ToDo off.png",gotoscreen_ToDo)
+		rec_b_override = button_img_do((self.xmax-415,335),"overrides off.png",gotoscreen_Override)
+		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
+		
+		settings_title= text_label((150,10),(700,30),"Settings", white)
+		
+		
+		rec_b_relaynames = button_ellipse_do((100,100),(200,100),red,"Rename Relays",False,gotoscreen_Relaynames) #takes you to a screen where you can rename the individual relays
+		rec_b_sensorsettings = button_ellipse_do((100,250),(200,100),blue,"Sensor Settings",False,donothing) #will eventually take you to a screen where you can set the frequency of get all calls to the arduino, manually dump the data_log, ect. 
+		rec_b_manualsave = button_ellipse_do((100,400),(200,100),purple,"Save Settings",False,save_settings_manual) #manually saves settings. It automatically saves on exit but this would prevent loss in the event of a crash
+		rec_b_serial = button_ellipse_do((100,550),(200,100),orange,"Serial Comms",False,gotoscreen_Serial)
+		rec_b_datetime = button_ellipse_do((100,700),(200,100),light_blue,"Date & Time",False,gotoscreen_DateTime)
+		
+		
+		self.objects = [settings_title,rec_b_datetime,rec_b_serial,rec_b_manualsave,rec_b_sensorsettings,rec_b_override,rec_b_MC,rec_b_ToDo,rec_b_humid,rec_b_temp,rec_b_main,rec_b_relaynames]
+
+
+class serialscreen(basic_screen):
+	def __init__(self):
+		self.xmax = screen_size_x
+		self.ymax = screen_size_y
+		self.name = "Serial Comms"
+		
+
+		#here is all the objects you want in the screen
+		rec_b_main = button_img_do((self.xmax-415,15),"MS off.png",gotoscreen_Main)
 		rec_b_datetime = button_img_do((self.xmax-415,95),"DT off.png",gotoscreen_DateTime)
 		rec_b_temp = button_img_do((self.xmax-415,175),"Temp off.png",gotoscreen_Temp)
 		rec_b_humid = button_img_do((self.xmax-415,255),"Humidity off.png",gotoscreen_Humid)
 		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",gotoscreen_ToDo)
 		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
-		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",donothing)
+		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
 		rec_b_override = button_img_do((self.xmax-415,615),"overrides off.png",gotoscreen_Override)
 		
-		rec_b_relaynames = button_ellipse_do((100,100),(200,100),red,"Rename Relays",False,gotoscreen_Relaynames) #takes you to a screen where you can rename the individual relays
-		rec_b_sensorsettings = button_ellipse_do((100,250),(200,100),blue,"Sensor Settings",False,donothing) #will eventually take you to a screen where you can set the frequency of get all calls to the arduino, manually dump the data_log, ect. 
-		rec_b_manualsave = button_ellipse_do((100,400),(200,100),purple,"Save Settings",False,save_settings_manual) #manually saves settings. It automatically saves on exit but this would prevent loss in the event of a crash
 		
 		
-		self.objects = [rec_b_manualsave,rec_b_sensorsettings,rec_b_override,rec_b_debug,rec_b_MC,rec_b_ToDo,rec_b_humid,rec_b_temp,rec_b_datetime,rec_b_main,rec_b_relaynames]
+		serial_label = text_label((50,65),(750,30),"Recent Serial Communication", white)
+		debug_w = serial_window((20,100),serial_comm)
+		
+		#these will be set up when the real arduino function is built
+		reestablish_b = button_rec_do((820,75),(300,80),orange,"Reestablish Comms",False,start_serial_comms)
+		close_link_b = button_rec_do((820,175),(300,80),orange,"Close Serial Comms",False,stop_serial_comms)
+		upload_b = button_rec_do((820,275),(300,80),orange,"Upload All Settings",False,ORrelay_update)
+		
+		self.objects = [close_link_b,upload_b,reestablish_b,serial_label,debug_w,rec_b_override,rec_b_debug,rec_b_MC,rec_b_ToDo,rec_b_humid,rec_b_temp,rec_b_datetime,rec_b_main]
+
+
+
 
 
 
@@ -2054,115 +2163,83 @@ class paasscreen(basic_screen):
 
 
 """Arduino sim for coding without an actual arduino connected, and Arduino real for final version. Both should take same input and output the same format"""
-"""'YYYY:MM:DD:HH:mm:SS-0000000000000000-TT.T/HH.H:TT.T/HH.H-M' is the format for data obtained from the arduino
+"""'YYYY:MM:DD:HH:mm:SS-0000000000000000-TT.T/HH.H:TT.T/HH.H-M-OR' is the format for data obtained from the arduino
 M is the manual control indicator bit 0 is off, 1 is MC engaged
+OR is the override state
 
 """
-def arduino_sim(cmd_type,cmd_specific):
+def arduino_control(cmd_type,cmd_specific):
 	global serial_comm
 	global now_adjustment
 	global sys_now
 	global manual_control_engaged
 	if cmd_type =="get":
+		
 		if cmd_specific == "all":
-			now = datetime.datetime.now()+now_adjustment
-			YYYY,MM,DD,HH,mm,SS= str(now.year),str(now.month),str(now.day),str(now.hour),str(now.minute),str(now.second)
-			if not manual_control_engaged:
-				MC = '0'
-				RS = "".join(str(randint(0,1)) for i in range(16))#generates random relay state, to be replaced with something from the ToDo list
-			else:
-				MC = '1'
-				RS = "".join(str(int(mc_s.objects[-1].buttons[i].pressed)) for i in range(len(relay_state)))
-			
-			rand_temps = ["81.0","78.0","76.0","75.5","75.0","74.5","74.0","73.0","69.0","error"]
-			rand_hums = ["81.0","80.0","79.0","69.0","error"]
-			rand_TH = ":".join(choice(rand_temps)+'/'+choice(rand_hums) for i in range(num_sensors)) #picks random values from list of possibles, which include errors
-			
-			sim_data = "-".join([":".join([YYYY,MM,DD,HH,mm,SS]),RS,rand_TH,MC]) #putting it all together
-			
-			data_log.append(sim_data) #append new simulated data to the running datalog
-			
-			#"serial" debugger logging
-			serial_comm.append("Pi: <get all>") #adding stuff to the debugging log
-			if len(serial_comm) > serial_comm_max_len:
-				del serial_comm[0]
-			serial_comm.append("ArduinoSIM:"+sim_data)
-			if len(serial_comm) > serial_comm_max_len:
-				del serial_comm[0]
+			reply = arduino_send_rec("<GA>")
+			if reply:
+				data_log.append(reply)
+				
+		elif cmd_specific == "time":
+			reply = arduino_send_rec("<GT>")
+			if reply:
+				YYYY,MM,DD,hh,mm,ss = reply.split(":")
+				sys_now = datetime.datetime.now() #gets the systems version of time now
+				set_now = datetime.datetime(int(YYYY), int(MM), int(DD), int(hh), int(mm), int(ss), 0) #default time, to be overwritten by time obtained from Arduino
+				now_adjustment = set_now - sys_now 
+				
 				
 	elif cmd_type == "set":
+		
 		if cmd_specific == "datetime":
 			year = datetime_s.slide_wheel_year.dial_output
-			month = datetime_s.slide_wheel_month.dial_output.zfill(2)
+			month = str(datetime_s.slide_wheel_month.dial_output).zfill(2)
 			day = datetime_s.slide_wheel_day.dial_output.zfill(2)
 			hour = datetime_s.slide_wheel_hour.dial_output.zfill(2)
 			minute = datetime_s.slide_wheel_minute.dial_output.zfill(2)
 			second = datetime_s.slide_wheel_second.dial_output.zfill(2)
-			send_string = "<settime:"+year+":"+month+":"+day+":"+hour+":"+minute+":"+second+">"
-			
 			sys_now = datetime.datetime.now() #gets the systems version of time now
-			set_now = datetime.datetime(int(year), int(month), int(day), int(hour), int(minute), int(second), 0) #default time, to be overwritten by time obtained from Arduino
-			now_adjustment = set_now - sys_now  #adjusted time
+			set_now = datetime.datetime(int(year), int(month), int(day), int(hour), int(minute), int(second), 0) #what you want the time to be
+			now_adjustment = set_now - sys_now  #the nessesary adjustment to the system time for it to be the time you want
+			send_string = "<ST"+year+month+day+hour+minute+second+">"
+			reply = arduino_send_rec(send_string)
+			if reply:
+				data_log.append(reply)
 			
-			serial_comm.append("ArduinoSIM:" + send_string)
-			#set date time simulation
 		elif cmd_specific == "overrides":
-			pass
-			#set overrides simulation
-		elif cmd_specific == "manualcontrol":
-			pass
-			#manual controll true or false
-		elif cmd_specific == "relaystate":
-			pass
-			#should only have effect if mannual control is true
-	
-	elif cmd_type == "establish":
-		serial_comm.append("serial comm sucessfull")
-		#establish serial comms simulation
-
-
-def arduino_real(cmd_type,cmd_specific):
-
-	if cmd_type =="get":
-		if cmd_specific == "datetime":
-			pass
-			#get time and date 
-		elif cmd_specific == "sensordata":
-			pass
-			#get sensor data 
-		elif cmd_specific == "relaystate":
-			pass
-			#get relay state 
-	
-	elif cmd_type == "set":
-		if cmd_specific == "datetime":
-			year = datetime_s.slide_wheel_year.dial_output
-			month = datetime_s.slide_wheel_month.dial_output.zfill(2)
-			day = datetime_s.slide_wheel_day.dial_output.zfill(2)
-			hour = datetime_s.slide_wheel_hour.dial_output.zfill(2)
-			minute = datetime_s.slide_wheel_minute.dial_output.zfill(2)
-			second = datetime_s.slide_wheel_second.dial_output.zfill(2)
-			send_string = "<settime:"+year+":"+month+":"+day+":"+hour+":"+minute+":"+second+">"
+			send_str = "SO"+str(settings_dict["override_dict"]["T"][0])+str(settings_dict["override_dict"]["T"][1])+str(settings_dict["override_dict"]["H"][0])+str(settings_dict["override_dict"]["H"][1])
+			arduino_send_rec(send_str)
 			
-			try:
-				serial_send(send_string)
-			except:
-				serial_comm.append("set time failed")
-				
-			#set date time and return the same data
-		elif cmd_specific == "overrides":
-			pass
-			#set overrides 
-		elif cmd_specific == "manualcontrol":
-			pass
-			#manual controll true or false
-		elif cmd_specific == "relaystate":
-			pass
-			#should only have effect if mannual control is true
+		elif cmd_specific == "ORrelaystate":
+			if arduino_send_rec("SOSTART") == "SENDOR":
+				for i in range(9): 
+					arduino_send_rec(settings_dict["overrides"]["NN", "HN", "CN", "NW", "HW", "CW", "ND", "HD", "CD"][i])
+				if arduino_send_rec("SOSTOP") == "ORRECIEVED":
+					serial_comm.append("Override send complete")
+			else:
+				serial_comm.append("Override update failed")
+			
+		elif cmd_specific == "ToDo":
+			pass 
+			
+			
+	elif cmd_type == "MC":
+		
+		#the response to these needs to be tied directly to MC = True/False
+		if cmd_specific == "on":
+			arduino_send_rec("MC1")
+			
+		elif cmd_specific == "off":
+			arduino_send_rec("MC0")
+			
+		elif cmd_specific == "set":
+			arduino_send_rec("MC"+relay_state)
+
 	
 	elif cmd_type == "establish":
 		serial_comm_start()
-		#establish serial comms 
+
+
 
 
 
@@ -2179,7 +2256,8 @@ ToDo_s = ToDoscreen()
 or_s = Overridescreen()
 settings_s = settingsscreen()
 relaynames_s = relayrenamescreen()
-screen_dict = {"Main":main_s,"MC":mc_s,"Debug":debug_s,"Temp":temp_s,"Humid":humid_s,"DateTime":datetime_s,"paas":paas_s,"ToDo":ToDo_s,"Override":or_s,"Settings":settings_s,"Relaynames":relaynames_s}
+serial_s = serialscreen()
+screen_dict = {"Main":main_s,"MC":mc_s,"Debug":debug_s,"Temp":temp_s,"Humid":humid_s,"DateTime":datetime_s,"paas":paas_s,"ToDo":ToDo_s,"Override":or_s,"Settings":settings_s,"Relaynames":relaynames_s,"Serial":serial_s}
 
 
 current_screen = main_s
@@ -2201,94 +2279,94 @@ def event_handler(event):
 	#events without categories must come first in the elif chain
 	if event.type == SENSOR_EVENT:
 		#eventually this will be a get-sensor-data to the arduino and sorting of the received data into individual lists and an average
-		arduino_sim("get","all")
-
-		#parsing the data from the last Arduino get
-		SD=data_log[-1].split('-')[2]
+		if serial_comm_established:
+			arduino_control("get","all")
+			#parsing the data from the last Arduino get
+			SD=data_log[-1].split('-')[2]
+			
 		
-		
-		#putting sensor readings into their appropriate sub lists for graphing. Need to generalize this into a single for loop based on num_sensors
-		
-		temp_total = 0
-		hum_total = 0
-		successful_temp_reads = 0
-		successful_hum_reads = 0
-		
-		
-		
-		t1 = SD.split(':')[0].split('/')[0]
-		if t1=='error':
-			data_dict["T1"]=[t1] + data_dict["T1"]
-			data_dict["TE"][0] += 1
-		else:
-			data_dict["T1"]=[float(t1)] + data_dict["T1"]
-			temp_total += float(t1)
-			successful_temp_reads +=1
-			if float(t1)>data_dict["TH"][0]:
-				data_dict["TH"][0]=float(t1)
-			if float(t1)<data_dict["TL"][0]:
-				data_dict["TL"][0]=float(t1)
-		
-		t2 = SD.split(':')[1].split('/')[0]
-		if t2=='error':
-			data_dict["T2"]=[t2] + data_dict["T2"]
-			data_dict["TE"][0] += 1
-		else:
-			data_dict["T2"]=[float(t2)] + data_dict["T2"]
-			temp_total += float(t2)
-			successful_temp_reads +=1
-			if float(t2)>data_dict["TH"][0]:
-				data_dict["TH"][0]=float(t2)
-			if float(t2)<data_dict["TL"][0]:
-				data_dict["TL"][0]=float(t2)
+			#putting sensor readings into their appropriate sub lists for graphing. Need to generalize this into a single for loop based on num_sensors
+			
+			temp_total = 0
+			hum_total = 0
+			successful_temp_reads = 0
+			successful_hum_reads = 0
 			
 			
-		h1 = SD.split(':')[0].split('/')[1]
-		if h1=='error':
-			data_dict["H1"]=[h1] + data_dict["H1"]
-			data_dict["HE"][0] += 1
-		else:
-			data_dict["H1"]=[float(h1)] + data_dict["H1"]
-			hum_total += float(h1)
-			successful_hum_reads +=1
-			if float(h1)>data_dict["HH"][0]:
-				data_dict["HH"][0]=float(h1)
-			if float(h1)<data_dict["HL"][0]:
-				data_dict["HL"][0]=float(h1)
-		h2 = SD.split(':')[1].split('/')[1]
-		if h2=='error':
-			data_dict["H2"]=[h2] + data_dict["H2"]
-			data_dict["HE"][0] += 1
 			
-		else:
-			data_dict["H2"]=[float(h2)] + data_dict["H2"]
-			hum_total += float(h2)
-			successful_hum_reads +=1
-			if float(h2)>data_dict["HH"][0]:
-				data_dict["HH"][0]=float(h2)
-			if float(h2)<data_dict["HL"][0]:
-				data_dict["HL"][0]=float(h2)
-		
-		if successful_temp_reads:
-			temp_avg = temp_total/successful_temp_reads
-		else:
-			temp_avg = 'error'
-		
-		if successful_hum_reads:
-			hum_avg = hum_total/successful_hum_reads
-		else:
-			hum_avg = 'error'
-		
-		data_dict["TA"]=[temp_avg] + data_dict["TA"]
-		data_dict["HA"]=[hum_avg] + data_dict["HA"]
-		
-		relay_state = data_log[-1].split('-')[1]
-		
-		
-		for key in data_dict:
-			if len(data_dict[key])>max_data_points:
-				data_dict[key] = data_dict[key][:max_data_points]
-		
+			t1 = SD.split(':')[0].split('/')[0]
+			if t1=='error':
+				data_dict["T1"]=[t1] + data_dict["T1"]
+				data_dict["TE"][0] += 1
+			else:
+				data_dict["T1"]=[float(t1)] + data_dict["T1"]
+				temp_total += float(t1)
+				successful_temp_reads +=1
+				if float(t1)>data_dict["TH"][0]:
+					data_dict["TH"][0]=float(t1)
+				if float(t1)<data_dict["TL"][0]:
+					data_dict["TL"][0]=float(t1)
+			
+			t2 = SD.split(':')[1].split('/')[0]
+			if t2=='error':
+				data_dict["T2"]=[t2] + data_dict["T2"]
+				data_dict["TE"][0] += 1
+			else:
+				data_dict["T2"]=[float(t2)] + data_dict["T2"]
+				temp_total += float(t2)
+				successful_temp_reads +=1
+				if float(t2)>data_dict["TH"][0]:
+					data_dict["TH"][0]=float(t2)
+				if float(t2)<data_dict["TL"][0]:
+					data_dict["TL"][0]=float(t2)
+				
+				
+			h1 = SD.split(':')[0].split('/')[1]
+			if h1=='error':
+				data_dict["H1"]=[h1] + data_dict["H1"]
+				data_dict["HE"][0] += 1
+			else:
+				data_dict["H1"]=[float(h1)] + data_dict["H1"]
+				hum_total += float(h1)
+				successful_hum_reads +=1
+				if float(h1)>data_dict["HH"][0]:
+					data_dict["HH"][0]=float(h1)
+				if float(h1)<data_dict["HL"][0]:
+					data_dict["HL"][0]=float(h1)
+			h2 = SD.split(':')[1].split('/')[1]
+			if h2=='error':
+				data_dict["H2"]=[h2] + data_dict["H2"]
+				data_dict["HE"][0] += 1
+				
+			else:
+				data_dict["H2"]=[float(h2)] + data_dict["H2"]
+				hum_total += float(h2)
+				successful_hum_reads +=1
+				if float(h2)>data_dict["HH"][0]:
+					data_dict["HH"][0]=float(h2)
+				if float(h2)<data_dict["HL"][0]:
+					data_dict["HL"][0]=float(h2)
+			
+			if successful_temp_reads:
+				temp_avg = temp_total/successful_temp_reads
+			else:
+				temp_avg = 'error'
+			
+			if successful_hum_reads:
+				hum_avg = hum_total/successful_hum_reads
+			else:
+				hum_avg = 'error'
+			
+			data_dict["TA"]=[temp_avg] + data_dict["TA"]
+			data_dict["HA"]=[hum_avg] + data_dict["HA"]
+			
+			relay_state = data_log[-1].split('-')[1]
+			
+			
+			for key in data_dict:
+				if len(data_dict[key])>max_data_points:
+					data_dict[key] = data_dict[key][:max_data_points]
+			
 		
 	elif event.category == "changescreen":
 		current_screen = screen_dict[event.screen]
@@ -2297,44 +2375,15 @@ def event_handler(event):
 	elif event.category == "timeevent":
 		
 		if event == getTime:
-			try:
-				serial_send("<time>")
-				rec_time_data = serial_recieve()
-				clock.tick(60) #have to have a small delay as the pi is faster than the arduino and can send a new request before the arduino is ready for it
-				serial_send("<date>")
-				rec_date_data = serial_recieve()
-				Y,M,D,H,m,S,MS = [int(x) for x in rec_date_data[0:-1].split(".")[::-1]+rec_time_data[0:-1].split(":")+[1]] #converting what was received from arduino into a list of Year,month,day,hour,min,sec,milisec
-				global sys_now
-				global set_now
-				global now_adjustment
-				sys_now = datetime.datetime.now() #gets the systems version of time now
-				set_now = datetime.datetime(Y,M,D,H,m,S,MS) #time to manually set your time to
-				now_adjustment = set_now - sys_now
-			except:
-				serial_comm.append("get time failed")
+			arduino_control("get","time")
 				
-
+				
 		elif event == setTime:
 			if int(current_screen.slide_wheel_year.dial_output)==2011 and int(current_screen.slide_wheel_month.dial_output)==3 and int(current_screen.slide_wheel_day.dial_output)==12:
 				current_screen = paas_s
 			else:
-				arduino_sim("set","datetime")
-			"""
-			#this is what was here before I created arduino sim and real
-			year = datetime_s.slide_wheel_year.dial_output
-			month = datetime_s.slide_wheel_month.dial_output.zfill(2)
-			day = datetime_s.slide_wheel_day.dial_output.zfill(2)
-			hour = datetime_s.slide_wheel_hour.dial_output.zfill(2)
-			minute = datetime_s.slide_wheel_minute.dial_output.zfill(2)
-			second = datetime_s.slide_wheel_second.dial_output.zfill(2)
-			send_string = "<settime:"+year+":"+month+":"+day+":"+hour+":"+minute+":"+second+">"
-			
-			try:
-				serial_send(send_string)
-			except:
-				serial_comm.append("set time failed")
-			"""
-	
+				arduino_control("set","datetime")
+
 	elif event.category == "todochange":
 		
 		global td_screen 
@@ -2362,8 +2411,6 @@ def event_handler(event):
 				current_screen.draw()
 		if event == ToDo_MIS:
 			new_entry = [int(current_screen.slide_wheel_hour.dial_output),int(current_screen.slide_wheel_minute.dial_output),int(current_screen.slide_wheel_second.dial_output),int(current_screen.round_tog_pad_relay.selected),int(current_screen.round_tog_pad_state.selected)]
-			
-			
 			if td_screen == "new":
 				settings_dict["ToDo"].append(new_entry)
 				settings_dict["ToDo"] = sortlist(settings_dict["ToDo"])
@@ -2380,7 +2427,7 @@ def event_handler(event):
 		global original_RS
 		if event == MC_enable:
 			manual_control_engaged = True
-			original_RS = ""
+			#original_RS = ""
 			original_RS = "".join(i for i in relay_state)
 		elif event == MC_disable:
 			original_RS = ""
@@ -2415,6 +2462,19 @@ def event_handler(event):
 	
 	elif event.category == "savesettings":
 		save_settings()
+	
+	elif event.category == "serial":
+		
+		if event.action == "start":
+			serial_comm_start()
+		elif event.action == "stop":
+			try:
+				ser.close()
+				serial_comm.append("Serial comms stopped")
+			except:
+				serial_comm.append("Error closing serial port")
+		elif event.action == "uploadOR":
+			arduino_control("set","ORrelaystate")
 
 
 
@@ -2422,7 +2482,7 @@ def event_handler(event):
 
 """SETUP"""
 """runs once before main loop"""
-serial_comm_start()
+#serial_comm_start()
 
 clock = pygame.time.Clock()
 
@@ -2431,7 +2491,7 @@ current_screen = main_s #boots to main screen
 pygame.time.set_timer(UPDATE_TIME_EVENT, time_freq) #for updateing the time displayed
 pygame.time.set_timer(SENSOR_EVENT, sensor_freq) #timer for getting sensor data
 
-pygame.event.post(getTime) #gets the time from the arduino on startup
+#pygame.event.post(getTime) #gets the time from the arduino on startup
 
 
 
@@ -2458,3 +2518,4 @@ while True:
 
 	pygame.display.flip()	
 	clock.tick(60)
+
