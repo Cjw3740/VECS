@@ -1,0 +1,38 @@
+Pi Sends			Arduino Responds		Description
+
+Get Commands
+
+<GA>				Datapoint			the Datapoint format:'YYYY:MM:DD:HH:mm:SS-0000000000000000-TT.T/HH.H:TT.T/HH.H-M-OR' M is the Manual Control indicator bit, OR is the 2 letter override state
+<GT>				Time or "RTCFAIL"		Gets the time from the rtc and sets the Arduino system time.Time in the format: "YYYY:MM:DD:hh:mm:ss"
+
+
+
+
+
+Set Commands
+
+<STYYMMDDhhmmss>		Time or TIMEFAIL"		Sets the time in both the Arduino and the RTC. Time in the format: "YYYY:MM:DD:hh:mm:ss"
+<SOTH.HTL.LHH.HHL.L>		repeats OR back			Sets the override conditions for temp and humidity
+<SRSTART>			"SENDOR"
+  <0000000000000000>		repeats relay state back	Sends the override relay states in order NN, HN, CN, NW, HW, CW, ND, HD, CD
+<SRSTOP>			"ORRECIEVED"
+<SPSTART>			"SENDTODO"
+  <hhmmss0000000000000000>   	repeats the todo entry back	Sends ToDo time-relaystate_should_be
+<SRSTOP>			"ORRECIEVED"
+
+
+
+
+
+
+Manual Control Commands
+
+<MC0>				"MCOFF"				manual control disengaged
+<MC1>				"MCON"				Manual control engaged
+<MR0000000000000000>		repeats the relay state back	The Pi can parse the dataoint and confirm the Manual Control relay state matches
+
+
+
+
+
+Unknown				"ERROR"				if the Arduino gets a command it does not recognise it should return ERROR
