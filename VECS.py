@@ -19,7 +19,8 @@ screen = pygame.display.set_mode((screen_size_x,screen_size_y))
 
 
 time_freq = 100 #freq for updating the time 1000 = 1sec
-sensor_freq = 1000 #get sensor val. 1000 = 1sec, should be set to 5 sec for actual use
+sensor_freq = 1000 #get sensor val. 1000 = 1sec, should be set to around 5 sec for actual use
+arduino_sensor_freq = 2500 #frequency at which the arduino checks the sensors. Should not be lower than 2 sec as any faster may cause the sensors to throw errors
 
 #serial communications stuff
 serial_comm = ["startup"]
@@ -45,6 +46,7 @@ now_adjustment = set_now - sys_now  #adjusted time
 
 
 """Relay/ToDo stuff"""
+default_relay_state = "0000000000000000"
 relay_state = "0000000000000000"
 original_RS = ""
 
@@ -52,11 +54,13 @@ manual_control_engaged = False
 ToDo = []
 settings_dict = {}
 
-
+#these arent used anymore but are examples. The used versions are in the settings dict and are loaded from the save file on startup
+"""
+ToDo = [[6, 30, 0, 2, 1], [6, 30, 0, 3, 1], [6, 32, 0, 2, 0], [6, 32, 0, 3, 0], [7, 0, 0, 0, 1], [7, 0, 30, 1, 1], [7, 1, 0, 1, 0], [7, 1, 0, 2, 1], [7, 1, 0, 3, 1], [7, 2, 0, 3, 0]]
 overrides = {"NN":"2222222222222222",'HN':"2222222222222222","CN":"2222222222222222", "ND":"2222222222222222", "NW":"2222222222222222", "HD":"2222222222222222", "HW":"0222222222222222", "CD":"1222222222222222", "CW":"2222222222222222"}
 override_dict = {"T":[80.0,70.5],"H":[99.0,70.0]}
 relay_dict = {1:"Lights",2:"Mister",3:"Fog 1",4:"Fog Fan 1",5:"Fogger 2",6:"Fog Fan 2",7:"Air Fan",8:"H20 Pump",9:"unused",10:"unused",11:"unused",12:"unused",13:"unused",14:"unused",15:"unused",16:"unused"}
-
+"""
 
 
 override_names = ['NN','HN','CN','NW','HW','CW','ND','HD','CD']
@@ -160,7 +164,8 @@ clear_hum_tracking = pygame.event.Event(CUSTOMEVENT, category = 'clearsensordata
 
 start_serial_comms = pygame.event.Event(CUSTOMEVENT, category = 'serial',action = "start")
 stop_serial_comms = pygame.event.Event(CUSTOMEVENT, category = 'serial',action = "stop")
-ORrelay_update = pygame.event.Event(CUSTOMEVENT, category = 'serial',action = "uploadOR")
+ORrelay_update = pygame.event.Event(CUSTOMEVENT, category = 'serial',action = "uploadORRS")
+OR_update = pygame.event.Event(CUSTOMEVENT, category = 'serial',action = "uploadOR")
 
 override_select = pygame.event.Event(CUSTOMEVENT, category = 'overrideselect')
 override_set = pygame.event.Event(CUSTOMEVENT, category = 'overrideset')
@@ -212,6 +217,18 @@ def serial_comm_start():
 		serial_comm_established = True
 	except:
 		serial_comm.append("serial comm failed")
+	while len(serial_comm) > serial_comm_max_len:
+		del serial_comm[0]
+
+def serial_comm_stop():
+	try:
+		ser.close()
+		serial_comm.append("Serial comms stopped")
+		serial_comm_established = False
+	except:
+		serial_comm.append("Error closing serial port")
+	while len(serial_comm) > serial_comm_max_len:
+		del serial_comm[0]
 
 
 
@@ -399,6 +416,26 @@ def save_datalog():
 #to take the string version of relay state and change individual "bits"
 def makebit(full,bit,val):
 	return full[:bit] + val + full[bit+1:]
+
+
+def arduino_todo(pi_todo,initial_RS):
+	temp_state = list(initial_RS) #breaking the initial state up into a list
+	str_todo = [str(entry[0]).zfill(2)+str(entry[1]).zfill(2)+str(entry[2]).zfill(2) for entry in pi_todo] #creating a string version of the times in the todo list
+	set_todo = set(str_todo) #eliminating duplicate values to get a list of unique times
+	str_todo = list(set_todo) #back to the list form
+	str_todo.sort() #sorting the list
+	final_list = [[i for i in entry] for entry in str_todo] 
+	for entry in pi_todo:
+		for i,new_entry in enumerate(str_todo):
+			if str(entry[0]).zfill(2)+str(entry[1]).zfill(2)+str(entry[2]).zfill(2) == new_entry[0:6]:
+				temp_state[entry[3]] = str(entry[4])
+				final_list[i] = final_list[i][0:6]+temp_state
+	final_list = ["".join(i) for i in final_list]
+	return final_list
+
+
+
+
 
 
 """found the following function online. Don't remember where"""
@@ -996,11 +1033,11 @@ class minmax_slider(control):
 		mouse_pos_x,mouse_pos_y = pygame.mouse.get_pos()
 		if pygame.mouse.get_pressed()[0] and inside_polygon(mouse_pos_x, mouse_pos_y,self.points):
 			if mouse_pos_x > self.center:
-				settings_dict["override_dict"][self.target][0] = max((1/self.m)*(mouse_pos_y - self.b),self.min_val+self.min_diff)
-				settings_dict["override_dict"][self.target][1] = min(settings_dict["override_dict"][self.target][1],settings_dict["override_dict"][self.target][0]-self.min_diff)
+				settings_dict["override_dict"][self.target][0] = round(max((1/self.m)*(mouse_pos_y - self.b),self.min_val+self.min_diff),1)
+				settings_dict["override_dict"][self.target][1] = round(min(settings_dict["override_dict"][self.target][1],settings_dict["override_dict"][self.target][0]-self.min_diff),1)
 			else:
-				settings_dict["override_dict"][self.target][1] = min((1/self.m)*(mouse_pos_y - self.b),self.max_val-self.min_diff)
-				settings_dict["override_dict"][self.target][0] = max(settings_dict["override_dict"][self.target][0],settings_dict["override_dict"][self.target][1]+self.min_diff)
+				settings_dict["override_dict"][self.target][1] = round(min((1/self.m)*(mouse_pos_y - self.b),self.max_val-self.min_diff),1)
+				settings_dict["override_dict"][self.target][0] = round(max(settings_dict["override_dict"][self.target][0],settings_dict["override_dict"][self.target][1]+self.min_diff),1)
 			self.draw()
 
 
@@ -1568,8 +1605,8 @@ class serial_window():
 		self.points = ((self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2))
 	
 	def draw(self):
-		pygame.draw.rect(screen,black, pygame.Rect((self.x1,self.y1,self.dx,self.dy)))
-		pygame.draw.rect(screen,light_blue, pygame.Rect((self.x1,self.y1,self.dx,self.dy)),1)
+		pygame.draw.rect(screen,black, pygame.Rect((self.x1,self.y1,self.dx,self.dy+10)))
+		pygame.draw.rect(screen,light_blue, pygame.Rect((self.x1,self.y1,self.dx,self.dy+10)),1)
 		count = 0
 		for entry in self.data:
 			if entry[0] == "P":
@@ -1975,6 +2012,9 @@ class ToDoscreen(basic_screen):
 		img_b_edit = button_img_do((630,355),"edit.png",ToDo_change)
 		
 		
+		rec_b_upload = button_rec_do((800,700),(250,150),orange,"Upload to Arduino",False,donothing)
+		
+		
 		
 		#time and date
 		rec_l_date = date_label((15,15),(100,30),light_blue)
@@ -1982,7 +2022,7 @@ class ToDoscreen(basic_screen):
 		
 		rot_b_status = rot_image_button((self.xmax-300,self.ymax-250),"green_gear.png",1,gotoscreen_Settings)
 		
-		self.objects = [rot_b_status,rec_b_override,rec_b_debug,img_b_new,img_b_del,img_b_edit,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,self.todo_display]
+		self.objects = [rec_b_upload,rot_b_status,rec_b_override,rec_b_debug,img_b_new,img_b_del,img_b_edit,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,self.todo_display]
 
 #different from other screens. Must be passed an entry from ToDo list. Use [0,0,0,0,0] if "new"
 class ToDoEditor(basic_screen):
@@ -2101,15 +2141,19 @@ class serialscreen(basic_screen):
 		
 		
 		
-		serial_label = text_label((50,65),(750,30),"Recent Serial Communication", white)
+		serial_label = text_label((20,65),(780,30),"Recent Serial Communications", white)
 		debug_w = serial_window((20,100),serial_comm)
 		
 		#these will be set up when the real arduino function is built
 		reestablish_b = button_rec_do((820,75),(300,80),orange,"Reestablish Comms",False,start_serial_comms)
 		close_link_b = button_rec_do((820,175),(300,80),orange,"Close Serial Comms",False,stop_serial_comms)
-		upload_b = button_rec_do((820,275),(300,80),orange,"Upload All Settings",False,ORrelay_update)
+		upload_ORRS_b = button_rec_do((820,275),(300,80),orange,"Upload Override RS",False,ORrelay_update)
+		upload_OR_b = button_rec_do((820,375),(300,80),orange,"Upload Override Conditions",False,OR_update)
+		upload_sensorfreq_b = button_rec_do((820,475),(300,80),orange,"Upload Sensor Frequency",False,donothing)
 		
-		self.objects = [close_link_b,upload_b,reestablish_b,serial_label,debug_w,rec_b_override,rec_b_debug,rec_b_MC,rec_b_ToDo,rec_b_humid,rec_b_temp,rec_b_datetime,rec_b_main]
+		
+		
+		self.objects = [upload_sensorfreq_b,upload_OR_b,close_link_b,upload_ORRS_b,reestablish_b,serial_label,debug_w,rec_b_override,rec_b_debug,rec_b_MC,rec_b_ToDo,rec_b_humid,rec_b_temp,rec_b_datetime,rec_b_main]
 
 
 
@@ -2207,33 +2251,43 @@ def arduino_control(cmd_type,cmd_specific):
 				data_log.append(reply)
 			
 		elif cmd_specific == "overrides":
-			send_str = "SO"+str(settings_dict["override_dict"]["T"][0])+str(settings_dict["override_dict"]["T"][1])+str(settings_dict["override_dict"]["H"][0])+str(settings_dict["override_dict"]["H"][1])
-			arduino_send_rec(send_str)
+			send_str = "<SO"+str(settings_dict["override_dict"]["T"][0])+str(settings_dict["override_dict"]["T"][1])+str(settings_dict["override_dict"]["H"][0])+str(settings_dict["override_dict"]["H"][1])+">"
+			if arduino_send_rec(send_str) == send_str:
+				serial_comm.append("Override upload complete")
+			else:
+				serial_comm.append("Override upload failed")
 			
 		elif cmd_specific == "ORrelaystate":
-			if arduino_send_rec("SOSTART") == "SENDOR":
+			if arduino_send_rec("<SRSTART>") == "SENDOR":
 				for i in range(9): 
-					arduino_send_rec(settings_dict["overrides"]["NN", "HN", "CN", "NW", "HW", "CW", "ND", "HD", "CD"][i])
-				if arduino_send_rec("SOSTOP") == "ORRECIEVED":
+					arduino_send_rec("<"+settings_dict["overrides"][override_names[i]]+">")
+				if arduino_send_rec("<SRSTOP>") == "ORRECIEVED":
 					serial_comm.append("Override send complete")
 			else:
-				serial_comm.append("Override update failed")
+				serial_comm.append("Override state upload failed")
 			
 		elif cmd_specific == "ToDo":
-			pass 
+			if arduino_send_rec("<SPSTART>") == "SENDTODO":
+				send_list = arduino_todo(settings_dict["ToDo"],default_relay_state)
+				for i,todo_entry in enumerate(send_list):
+					arduino_send_rec("<"+todo_entry+">")
+				if arduino_send_rec("<SPSTOP>") == "TODORECIEVED":
+					serial_comm.append("ToDo update complete")
+			else:
+				serial_comm.append("ToDo update failed")
 			
 			
 	elif cmd_type == "MC":
 		
 		#the response to these needs to be tied directly to MC = True/False
 		if cmd_specific == "on":
-			arduino_send_rec("MC1")
+			arduino_send_rec("<MC1>")
 			
 		elif cmd_specific == "off":
-			arduino_send_rec("MC0")
+			arduino_send_rec("<MC0>")
 			
 		elif cmd_specific == "set":
-			arduino_send_rec("MC"+relay_state)
+			arduino_send_rec("<MC"+relay_state+">")
 
 	
 	elif cmd_type == "establish":
@@ -2468,13 +2522,16 @@ def event_handler(event):
 		if event.action == "start":
 			serial_comm_start()
 		elif event.action == "stop":
-			try:
-				ser.close()
-				serial_comm.append("Serial comms stopped")
-			except:
-				serial_comm.append("Error closing serial port")
-		elif event.action == "uploadOR":
+			serial_comm_stop()
+			
+		elif event.action == "uploadORRS":
+			
 			arduino_control("set","ORrelaystate")
+		
+		elif event.action == "uploadOR":
+			
+			arduino_control("set","overrides")
+			
 
 
 
