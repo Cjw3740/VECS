@@ -19,7 +19,7 @@ screen = pygame.display.set_mode((screen_size_x,screen_size_y))
 
 
 time_freq = 100 #freq for updating the time 1000 = 1sec
-sensor_freq = 1000 #get sensor val. 1000 = 1sec, should be set to around 5 sec for actual use
+sensor_freq = 2000 #get sensor val. 1000 = 1sec, should be set to around 5 sec for actual use
 arduino_sensor_freq = 2500 #frequency at which the arduino checks the sensors. Should not be lower than 2 sec as any faster may cause the sensors to throw errors
 
 #serial communications stuff
@@ -185,6 +185,7 @@ SENSOR_EVENT = pygame.USEREVENT+3
 """for tracking outgoing serial communications to arduino. To be used in place of ser.write"""
 def serial_send(str_data):
 	global serial_comm
+	global serial_comm_established
 	serial_comm.append("Pi:" + str_data)
 	if serial_comm_established:
 		ser.write(str_data.encode())
@@ -212,15 +213,21 @@ def serial_recieve():
 def serial_comm_start():
 	try:
 		global ser
+		global serial_comm_established
 		ser = serial.Serial(Arduino_address, 9600,timeout=1) # Establish the connection on a specific port, must know the name of the arduino port
 		serial_comm.append("serial comm sucessfull")
 		serial_comm_established = True
+		clock.tick(50) #need a slight delay so that if another request is sent right away the Arduino can respond
+		
 	except:
 		serial_comm.append("serial comm failed")
+		serial_comm_established = False
 	while len(serial_comm) > serial_comm_max_len:
 		del serial_comm[0]
 
 def serial_comm_stop():
+	global ser
+	global serial_comm_established
 	try:
 		ser.close()
 		serial_comm.append("Serial comms stopped")
@@ -243,6 +250,10 @@ def arduino_send_rec(str_msg):
 				recieved = ser.readline().decode('ascii')[:-2]   #the slice removes the newline
 				if not recieved:
 					serial_comm.append("No response")
+					#if it fails to get a response it will try to reconnect once
+					serial_comm_stop()
+					clock.tick(100)
+					serial_comm_start()
 				else:
 					serial_comm.append("Arduino:" + recieved)
 				
@@ -1123,13 +1134,13 @@ class hex_pad_RS():
 		if event.type == UPDATE_TIME_EVENT:
 			self.draw()
 		mouse_pos_x,mouse_pos_y = pygame.mouse.get_pos()
-		for btn in self.buttons:
-			if inside_polygon(mouse_pos_x, mouse_pos_y,btn.points):
-				btn.do(event) 
-		
-		if manual_control_engaged:
+		if event.type == pygame.MOUSEBUTTONDOWN and manual_control_engaged:
+			for btn in self.buttons:
+				if inside_polygon(mouse_pos_x, mouse_pos_y,btn.points):
+					btn.do(event) 
 			relay_state = "".join(str(int(self.buttons[i].pressed)) for i in range(len(relay_state)))
-			
+			arduino_control("MC","set")
+
 
 
 class keyboard():
@@ -1605,6 +1616,8 @@ class serial_window():
 		self.points = ((self.x1,self.y1),(self.x2,self.y1),(self.x2,self.y2),(self.x1,self.y2))
 	
 	def draw(self):
+		while len(serial_comm) > serial_comm_max_len:
+			del serial_comm[0]
 		pygame.draw.rect(screen,black, pygame.Rect((self.x1,self.y1,self.dx,self.dy+10)))
 		pygame.draw.rect(screen,light_blue, pygame.Rect((self.x1,self.y1,self.dx,self.dy+10)),1)
 		count = 0
@@ -1810,7 +1823,7 @@ class MCscreen(basic_screen):
 		
 		relay_status = relay_status_bar((500,15))
 		
-		MC_tog = button_rec_tog((800,350),(250,200),yellow,"MANUAL CONTROL",False,MC_enable,MC_disable)
+		self.MC_tog = button_rec_tog((800,350),(250,200),yellow,"MANUAL CONTROL",False,MC_enable,MC_disable)
 		
 		#time and date
 		rec_l_date = date_label((15,15),(100,30),light_blue)
@@ -1821,7 +1834,7 @@ class MCscreen(basic_screen):
 		
 		rot_b_status = rot_image_button((self.xmax-300,self.ymax-250),"green_gear.png",1,gotoscreen_Settings)
 		
-		self.objects = [rot_b_status,rec_b_override,rec_l_hum,rec_l_temp,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,relay_status,MC_tog,hex_p]
+		self.objects = [rot_b_status,rec_b_override,rec_l_hum,rec_l_temp,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,relay_status,self.MC_tog,hex_p]
 
 
 class tempscreen(basic_screen):
@@ -2281,13 +2294,25 @@ def arduino_control(cmd_type,cmd_specific):
 		
 		#the response to these needs to be tied directly to MC = True/False
 		if cmd_specific == "on":
-			arduino_send_rec("<MC1>")
+			if arduino_send_rec("<M1>") == "MCON":
+				manual_control_engaged = True
+				serial_comm.append("Manual Control Engaged")
+			else:
+				serial_comm.append("Failed to engage Manual Control")
+				mc_s.MC_tog.pressed = False
+				mc_s.MC_tog.draw()
 			
 		elif cmd_specific == "off":
-			arduino_send_rec("<MC0>")
+			if arduino_send_rec("<M0>") == "MCOFF":
+				manual_control_engaged = False
+				serial_comm.append("Manual Control disengaged")
+			else:
+				serial_comm.append("Failed to disengage Manual Control")
+				mc_s.MC_tog.pressed = True
+				mc_s.MC_tog.draw()
 			
 		elif cmd_specific == "set":
-			arduino_send_rec("<MC"+relay_state+">")
+			arduino_send_rec("<MR"+relay_state+">")
 
 	
 	elif cmd_type == "establish":
@@ -2480,17 +2505,18 @@ def event_handler(event):
 	elif event.category == "manualcontrol":
 		global original_RS
 		if event == MC_enable:
-			manual_control_engaged = True
-			#original_RS = ""
+			arduino_control("MC","on")
+			#manual_control_engaged = True
 			original_RS = "".join(i for i in relay_state)
 		elif event == MC_disable:
+			arduino_control("MC","off")
 			original_RS = ""
-			manual_control_engaged = False
+			#manual_control_engaged = False
 		elif event == MC_reset:
 			relay_state = "".join(i for i in original_RS)
 			for i,n in enumerate(original_RS):
 				mc_s.objects[-1].buttons[i].pressed=bool(int(n))
-			mc_s.objects[-1].buttons[-1].pressed = False
+			mc_s.objects[-1].buttons[-1].pressed = False #this needs fixing. Should not be refering to the button by it's location in the objects list
 	
 	elif event.category == 'clearsensordata':
 		if event == clear_temp_tracking:
@@ -2572,7 +2598,8 @@ while True:
 		if current_screen != screen_last:
 			current_screen.draw()
 			
+	while len(serial_comm) > serial_comm_max_len:
+		del serial_comm[0]
 
 	pygame.display.flip()	
 	clock.tick(60)
-
