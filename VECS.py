@@ -1775,7 +1775,7 @@ class mainscreen(basic_screen):
 		ta_label = text_label((300,60),(200,30),"Average Temp",light_blue)
 		temp_graph = time_graph((15,100),(800,400),60,90,100,max_data_points,green,"Tempurature","TA")
 		ha_label = text_label((300,540),(200,30),"Average Humidity",light_blue)
-		humid_graph = time_graph((15,580),(800,400),60,110,100,max_data_points,light_blue,"Humidity","HA")
+		humid_graph = time_graph((15,580),(800,400),20,110,100,max_data_points,light_blue,"Humidity","HA")
 		
 		#rec_g_humid = button_rec_do((15,550),(800,400),light_blue,"humidity graph",False,gotoscreen_Humid)
 		
@@ -2427,12 +2427,12 @@ def event_handler(event):
 					data_dict["HL"][0]=float(h2)
 			
 			if successful_temp_reads:
-				temp_avg = temp_total/successful_temp_reads
+				temp_avg = round(temp_total/successful_temp_reads,2)
 			else:
 				temp_avg = 'error'
 			
 			if successful_hum_reads:
-				hum_avg = hum_total/successful_hum_reads
+				hum_avg = round(hum_total/successful_hum_reads,2)
 			else:
 				hum_avg = 'error'
 			
