@@ -1907,7 +1907,7 @@ rot_b_status = rot_image_button((screen_size_x-300,screen_size_y-250),"green_gea
 
 
 
-
+#need to remove this
 #currently the debugging screen
 class debugscreen(basic_screen):
 	def __init__(self):
@@ -1940,40 +1940,27 @@ class debugscreen(basic_screen):
 		self.objects = [rot_b_status,rec_b_override,rec_b_debug,rec_b_MC,rec_b_ToDo,rec_b_humid,rec_b_temp,rec_b_datetime,rec_b_main,rec_l_date,rec_l_time,screen_label,debug_w,serial_label]
 
 
-class ToDoscreen(basic_screen):
-	def __init__(self):
-		self.xmax = screen_size_x
-		self.ymax = screen_size_y
-		self.name = "ToDo"
-		
-		#here is all the objects you want in the screen
-		rec_b_main = button_img_do((self.xmax-415,15),"MS off.png",gotoscreen_Main)
-		rec_b_datetime = button_img_do((self.xmax-415,95),"DT off.png",gotoscreen_DateTime)
-		rec_b_temp = button_img_do((self.xmax-415,175),"Temp off.png",gotoscreen_Temp)
-		rec_b_humid = button_img_do((self.xmax-415,255),"Humidity off.png",gotoscreen_Humid)
-		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo on.png",donothing)
-		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
-		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
-		rec_b_override = button_img_do((self.xmax-415,615),"overrides off.png",gotoscreen_Override)
-		
-		
-		self.todo_display = ToDo_window((100,100),settings_dict["ToDo"])
-		img_b_new = button_img_do((630,115),"add.png",ToDo_new)
-		img_b_del = button_img_do((630,235),"del.png",ToDo_del)
-		img_b_edit = button_img_do((630,355),"edit.png",ToDo_change)
-		
-		
-		rec_b_upload = button_rec_do((800,700),(250,150),orange,"Upload to Arduino",False,donothing)
-		
-		
-		
-		#time and date
-		rec_l_date = date_label((15,15),(100,30),light_blue)
-		rec_l_time = time_label((130,15),(100,30),light_blue)
-		
-		rot_b_status = rot_image_button((self.xmax-300,self.ymax-250),"green_gear.png",1,gotoscreen_Settings)
-		
-		self.objects = [rec_b_upload,rot_b_status,rec_b_override,rec_b_debug,img_b_new,img_b_del,img_b_edit,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,self.todo_display]
+ToDo_screen = basic_screen2(
+rec_b_main = button_img_do((screen_size_x-415,15),"MS off.png",gotoscreen_Main),
+rec_b_datetime = button_img_do((screen_size_x-415,95),"DT off.png",gotoscreen_DateTime),
+rec_b_temp = button_img_do((screen_size_x-415,175),"Temp off.png",gotoscreen_Temp),
+rec_b_humid = button_img_do((screen_size_x-415,255),"Humidity off.png",gotoscreen_Humid),
+rec_b_ToDo = button_img_do((screen_size_x-415,335),"ToDo on.png",donothing),
+rec_b_MC = button_img_do((screen_size_x-415,415),"MC off.png",gotoscreen_MC),
+rec_b_debug = button_img_do((screen_size_x-415,535),"Debug off.png",gotoscreen_Debug),
+rec_b_override = button_img_do((screen_size_x-415,615),"overrides off.png",gotoscreen_Override),
+todo_display = ToDo_window((100,100),settings_dict["ToDo"]),
+img_b_new = button_img_do((630,115),"add.png",ToDo_new),
+img_b_del = button_img_do((630,235),"del.png",ToDo_del),
+img_b_edit = button_img_do((630,355),"edit.png",ToDo_change),
+rec_b_upload = button_rec_do((800,700),(250,150),orange,"Upload to Arduino",False,donothing),
+rec_l_date = date_label((15,15),(100,30),light_blue),
+rec_l_time = time_label((130,15),(100,30),light_blue),
+rot_b_status = rot_image_button((screen_size_x-300,screen_size_y-250),"green_gear.png",1,gotoscreen_Settings),
+)
+
+
+
 
 #different from other screens. Must be passed an entry from ToDo list. Use [0,0,0,0,0] if "new"
 class ToDoEditor(basic_screen):
@@ -2008,136 +1995,77 @@ class ToDoEditor(basic_screen):
 
 
 
-class Overridescreen(basic_screen):
-	def __init__(self):
-		self.xmax = screen_size_x
-		self.ymax = screen_size_y
-		self.name = "Overrides"
-		
-		#here is all the objects you want in the screen
-		rec_b_main = button_img_do((self.xmax-415,15),"MS off.png",gotoscreen_Main)
-		rec_b_datetime = button_img_do((self.xmax-415,95),"DT off.png",gotoscreen_DateTime)
-		rec_b_temp = button_img_do((self.xmax-415,175),"Temp off.png",gotoscreen_Temp)
-		rec_b_humid = button_img_do((self.xmax-415,255),"Humidity off.png",gotoscreen_Humid)
-		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",gotoscreen_ToDo)
-		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
-		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
-		rec_b_override = button_img_do((self.xmax-415,615),"overrides on.png",donothing)
-		
-		
-		temp_label = text_label((50,60),(137,40),"Temp",light_blue)
-		OR_slider_temp = minmax_slider((137,300),50,100,blue,red,5,(50,150),"T")
-		hum_label = text_label((50,560),(137,40),"Humidity",light_blue)
-		OR_slider_hum = minmax_slider((137,300),50,100,blue,red,5,(50,650),"H")
-		
-		self.OR_table = Override_toggle_pad((250,200),150,light_blue,white) #lists the various override states in a 3 by 3 grid
-		
-		self.relay_pad = Override_relay_pad((800,80),(110,110)) #the list of 3 state buttons for the override relay states
-		
-		rec_b_upload = button_rec_do((250,700),(450,150),orange,"Upload to Arduino",False,donothing)
-		
-		
-		
-		
-		rot_b_status = rot_image_button((self.xmax-300,self.ymax-250),"green_gear.png",1,gotoscreen_Settings)
-		
-		#all the objects you want to render
-		self.objects = [rec_b_upload,rot_b_status,self.OR_table,self.relay_pad, hum_label,temp_label,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_override,rec_b_ToDo,OR_slider_temp,OR_slider_hum]
+
+override_screen = basic_screen2(
+rec_b_main = button_img_do((screen_size_x-415,15),"MS off.png",gotoscreen_Main),
+rec_b_datetime = button_img_do((screen_size_x-415,95),"DT off.png",gotoscreen_DateTime),
+rec_b_temp = button_img_do((screen_size_x-415,175),"Temp off.png",gotoscreen_Temp),
+rec_b_humid = button_img_do((screen_size_x-415,255),"Humidity off.png",gotoscreen_Humid),
+rec_b_ToDo = button_img_do((screen_size_x-415,335),"ToDo off.png",gotoscreen_ToDo),
+rec_b_MC = button_img_do((screen_size_x-415,415),"MC off.png",gotoscreen_MC),
+rec_b_debug = button_img_do((screen_size_x-415,535),"Debug off.png",gotoscreen_Debug),
+rec_b_override = button_img_do((screen_size_x-415,615),"overrides on.png",donothing),
+temp_label = text_label((50,60),(137,40),"Temp",light_blue),
+OR_slider_temp = minmax_slider((137,300),50,100,blue,red,5,(50,150),"T"),
+hum_label = text_label((50,560),(137,40),"Humidity",light_blue),
+OR_slider_hum = minmax_slider((137,300),50,100,blue,red,5,(50,650),"H"),
+OR_table = Override_toggle_pad((250,200),150,light_blue,white), #lists the various override states in a 3 by 3 grid
+relay_pad = Override_relay_pad((800,80),(110,110)), #the list of 3 state buttons for the override relay states
+rec_b_upload = button_rec_do((250,700),(450,150),orange,"Upload to Arduino",False,donothing),
+rot_b_status = rot_image_button((screen_size_x-300,screen_size_y-250),"green_gear.png",1,gotoscreen_Settings)
+)
 
 
-class settingsscreen(basic_screen):
-	def __init__(self):
-		self.xmax = screen_size_x
-		self.ymax = screen_size_y
-		self.name = "Settings"
-		
-
-		#here is all the objects you want in the screen
-		rec_b_main = button_img_do((self.xmax-415,15),"MS off.png",gotoscreen_Main)
-		rec_b_temp = button_img_do((self.xmax-415,95),"Temp off.png",gotoscreen_Temp)
-		rec_b_humid = button_img_do((self.xmax-415,175),"Humidity off.png",gotoscreen_Humid)
-		rec_b_ToDo = button_img_do((self.xmax-415,255),"ToDo off.png",gotoscreen_ToDo)
-		rec_b_override = button_img_do((self.xmax-415,335),"overrides off.png",gotoscreen_Override)
-		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
-		
-		settings_title= text_label((150,10),(700,30),"Settings", white)
-		
-		
-		rec_b_relaynames = button_ellipse_do((100,100),(200,100),red,"Rename Relays",False,gotoscreen_Relaynames) #takes you to a screen where you can rename the individual relays
-		rec_b_sensorsettings = button_ellipse_do((100,250),(200,100),blue,"Sensor Settings",False,donothing) #will eventually take you to a screen where you can set the frequency of get all calls to the arduino, manually dump the data_log, ect. 
-		rec_b_manualsave = button_ellipse_do((100,400),(200,100),purple,"Save Settings",False,save_settings_manual) #manually saves settings. It automatically saves on exit but this would prevent loss in the event of a crash
-		rec_b_serial = button_ellipse_do((100,550),(200,100),orange,"Serial Comms",False,gotoscreen_Serial)
-		rec_b_datetime = button_ellipse_do((100,700),(200,100),light_blue,"Date & Time",False,gotoscreen_DateTime)
-		
-		
-		self.objects = [settings_title,rec_b_datetime,rec_b_serial,rec_b_manualsave,rec_b_sensorsettings,rec_b_override,rec_b_MC,rec_b_ToDo,rec_b_humid,rec_b_temp,rec_b_main,rec_b_relaynames]
+settings_screen = basic_screen2(
+rec_b_main = button_img_do((screen_size_x-415,15),"MS off.png",gotoscreen_Main),
+rec_b_temp = button_img_do((screen_size_x-415,95),"Temp off.png",gotoscreen_Temp),
+rec_b_humid = button_img_do((screen_size_x-415,175),"Humidity off.png",gotoscreen_Humid),
+rec_b_ToDo = button_img_do((screen_size_x-415,255),"ToDo off.png",gotoscreen_ToDo),
+rec_b_override = button_img_do((screen_size_x-415,335),"overrides off.png",gotoscreen_Override),
+rec_b_MC = button_img_do((screen_size_x-415,415),"MC off.png",gotoscreen_MC),
+settings_title= text_label((150,10),(700,30),"Settings", white),
+rec_b_relaynames = button_ellipse_do((100,100),(200,100),red,"Rename Relays",False,gotoscreen_Relaynames), #takes you to a screen where you can rename the individual relays
+rec_b_sensorsettings = button_ellipse_do((100,250),(200,100),blue,"Sensor Settings",False,donothing), #will eventually take you to a screen where you can set the frequency of get all calls to the arduino, manually dump the data_log, ect. 
+rec_b_manualsave = button_ellipse_do((100,400),(200,100),purple,"Save Settings",False,save_settings_manual), #manually saves settings. It automatically saves on exit but this would prevent loss in the event of a crash
+rec_b_serial = button_ellipse_do((100,550),(200,100),orange,"Serial Comms",False,gotoscreen_Serial),
+rec_b_datetime = button_ellipse_do((100,700),(200,100),light_blue,"Date & Time",False,gotoscreen_DateTime),
+)
 
 
-class serialscreen(basic_screen):
-	def __init__(self):
-		self.xmax = screen_size_x
-		self.ymax = screen_size_y
-		self.name = "Serial Comms"
-		
-
-		#here is all the objects you want in the screen
-		rec_b_main = button_img_do((self.xmax-415,15),"MS off.png",gotoscreen_Main)
-		rec_b_datetime = button_img_do((self.xmax-415,95),"DT off.png",gotoscreen_DateTime)
-		rec_b_temp = button_img_do((self.xmax-415,175),"Temp off.png",gotoscreen_Temp)
-		rec_b_humid = button_img_do((self.xmax-415,255),"Humidity off.png",gotoscreen_Humid)
-		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",gotoscreen_ToDo)
-		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
-		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
-		rec_b_override = button_img_do((self.xmax-415,615),"overrides off.png",gotoscreen_Override)
-		
-		
-		
-		serial_label = text_label((20,65),(780,30),"Recent Serial Communications", white)
-		debug_w = serial_window((20,100),serial_comm)
-		
-		#these will be set up when the real arduino function is built
-		reestablish_b = button_rec_do((820,75),(300,80),orange,"Reestablish Comms",False,start_serial_comms)
-		close_link_b = button_rec_do((820,175),(300,80),orange,"Close Serial Comms",False,stop_serial_comms)
-		upload_ORRS_b = button_rec_do((820,275),(300,80),orange,"Upload Override RS",False,ORrelay_update)
-		upload_OR_b = button_rec_do((820,375),(300,80),orange,"Upload Override Conditions",False,OR_update)
-		upload_sensorfreq_b = button_rec_do((820,475),(300,80),orange,"Upload Sensor Frequency",False,donothing)
-		
-		
-		
-		self.objects = [upload_sensorfreq_b,upload_OR_b,close_link_b,upload_ORRS_b,reestablish_b,serial_label,debug_w,rec_b_override,rec_b_debug,rec_b_MC,rec_b_ToDo,rec_b_humid,rec_b_temp,rec_b_datetime,rec_b_main]
+serial_screen = basic_screen2(
+rec_b_main = button_img_do((screen_size_x-415,15),"MS off.png",gotoscreen_Main),
+rec_b_datetime = button_img_do((screen_size_x-415,95),"DT off.png",gotoscreen_DateTime),
+rec_b_temp = button_img_do((screen_size_x-415,175),"Temp off.png",gotoscreen_Temp),
+rec_b_humid = button_img_do((screen_size_x-415,255),"Humidity off.png",gotoscreen_Humid),
+rec_b_ToDo = button_img_do((screen_size_x-415,335),"ToDo off.png",gotoscreen_ToDo),
+rec_b_MC = button_img_do((screen_size_x-415,415),"MC off.png",gotoscreen_MC),
+rec_b_debug = button_img_do((screen_size_x-415,535),"Debug off.png",gotoscreen_Debug),
+rec_b_override = button_img_do((screen_size_x-415,615),"overrides off.png",gotoscreen_Override),
+serial_label = text_label((20,65),(780,30),"Recent Serial Communications", white),
+debug_w = serial_window((20,100),serial_comm),
+reestablish_b = button_rec_do((820,75),(300,80),orange,"Reestablish Comms",False,start_serial_comms),
+close_link_b = button_rec_do((820,175),(300,80),orange,"Close Serial Comms",False,stop_serial_comms),
+upload_ORRS_b = button_rec_do((820,275),(300,80),orange,"Upload Override RS",False,ORrelay_update),
+upload_OR_b = button_rec_do((820,375),(300,80),orange,"Upload Override Conditions",False,OR_update),
+upload_sensorfreq_b = button_rec_do((820,475),(300,80),orange,"Upload Sensor Frequency",False,donothing)
+)
 
 
+relay_b_list = [[[i+(8*j),settings_dict["relay_dict"][str(1+i+(8*j))]] for i in range(8)] for j in range(2)]
+relaynames_screen = basic_screen2(
+rec_b_main = button_img_do((screen_size_x-415,15),"MS off.png",gotoscreen_Main),
+rec_b_datetime = button_img_do((screen_size_x-415,95),"DT off.png",gotoscreen_DateTime),
+rec_b_temp = button_img_do((screen_size_x-415,175),"Temp off.png",gotoscreen_Temp),
+rec_b_humid = button_img_do((screen_size_x-415,255),"Humidity off.png",gotoscreen_Humid),
+rec_b_ToDo = button_img_do((screen_size_x-415,335),"ToDo off.png",gotoscreen_ToDo),
+rec_b_MC = button_img_do((screen_size_x-415,415),"MC off.png",gotoscreen_MC),
+rec_b_debug = button_img_do((screen_size_x-415,535),"Debug off.png",gotoscreen_Debug),
+rec_b_override = button_img_do((screen_size_x-415,615),"overrides off.png",gotoscreen_Override),
+round_tog_pad_relay = ellipse_toggle_pad((50,50),(120,120),5,relay_b_list,light_blue,0),
+relay_name_keyboard = keyboard((10,500),(screen_size_x-500,400),light_blue,donothing)
+)
 
 
-
-
-class relayrenamescreen(basic_screen):
-	def __init__(self):
-		self.xmax = screen_size_x
-		self.ymax = screen_size_y
-		self.name = "Relay Names"
-		
-
-		#here is all the objects you want in the screen
-		rec_b_main = button_img_do((self.xmax-415,15),"MS off.png",gotoscreen_Main)
-		rec_b_datetime = button_img_do((self.xmax-415,95),"DT off.png",gotoscreen_DateTime)
-		rec_b_temp = button_img_do((self.xmax-415,175),"Temp off.png",gotoscreen_Temp)
-		rec_b_humid = button_img_do((self.xmax-415,255),"Humidity off.png",gotoscreen_Humid)
-		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",gotoscreen_ToDo)
-		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
-		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
-		rec_b_override = button_img_do((self.xmax-415,615),"overrides off.png",gotoscreen_Override)
-		
-		
-		#list of relays # toggle pad
-		b_list = [[[i+(8*j),settings_dict["relay_dict"][str(1+i+(8*j))]] for i in range(8)] for j in range(2)]
-		self.round_tog_pad_relay = ellipse_toggle_pad((50,50),(120,120),5,b_list,light_blue,0)
-		
-		
-		
-		relay_name_keyboard = keyboard((10,500),(self.xmax-500,400),light_blue,donothing)
-		
-		self.objects = [rec_b_override,rec_b_debug,rec_b_MC,rec_b_ToDo,rec_b_humid,rec_b_temp,rec_b_datetime,rec_b_main,relay_name_keyboard,self.round_tog_pad_relay]
 
 
 
@@ -2262,19 +2190,12 @@ def arduino_control(cmd_type,cmd_specific):
 
 
 #initialize screens and therefore their objects
-#main_s = mainscreen()
-#mc_s = MCscreen()
-debug_s = debugscreen()
-#temp_s = tempscreen()
-#humid_s = humidscreen()
-#datetime_s = datetimescreen()
-paas_s = paasscreen()
-ToDo_s = ToDoscreen()
-or_s = Overridescreen()
-settings_s = settingsscreen()
-relaynames_s = relayrenamescreen()
-serial_s = serialscreen()
-screen_dict = {"Main":main_screen,"MC":MC_screen,"Debug":debug_s,"Temp":temp_screen,"Humid":humid_screen,"DateTime":datetime_screen,"paas":paas_s,"ToDo":ToDo_s,"Override":or_s,"Settings":settings_s,"Relaynames":relaynames_s,"Serial":serial_s}
+
+debug_s = debugscreen() #need to remove this one entirely
+
+paas_s = paasscreen() #keeping this one as it's own class, just in case
+
+screen_dict = {"Main":main_screen,"MC":MC_screen,"Debug":debug_s,"Temp":temp_screen,"Humid":humid_screen,"DateTime":datetime_screen,"paas":paas_s,"ToDo":ToDo_screen,"Override":override_screen,"Settings":settings_screen,"Relaynames":relaynames_screen,"Serial":serial_screen}
 
 
 current_screen = main_screen
@@ -2470,15 +2391,15 @@ def event_handler(event):
 			
 	#when selecting an override state, it draws the correct relay config
 	elif event.category == "overrideselect":
-		for i,b in enumerate(or_s.OR_table.buttons):
+		for i,b in enumerate(override_screen.OR_table.buttons):
 			if b.pressed == True:
 				current_override_state = override_names[i]
-				for j,btn in enumerate(or_s.relay_pad.buttons):
+				for j,btn in enumerate(override_screen.relay_pad.buttons):
 					btn.current_state = int(settings_dict["overrides"][override_names[i]][j])
 					btn.draw()
 	
 	elif event.category == "overrideset":
-		settings_dict["overrides"][current_override_state] = "".join(str(btn.current_state) for btn in or_s.relay_pad.buttons)
+		settings_dict["overrides"][current_override_state] = "".join(str(btn.current_state) for btn in override_screen.relay_pad.buttons)
 	
 	elif event.category == "savesettings":
 		save_settings()
@@ -2527,8 +2448,9 @@ while True:
 		screen_last = current_screen
 		
 		if event.type == pygame.QUIT:
+			print("Saving settings")
 			save_settings()
-
+			print("Settings saved, quitting program")
 			exit()
 			
 		elif event.type == CUSTOMEVENT or event.type == SENSOR_EVENT:
