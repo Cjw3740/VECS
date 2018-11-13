@@ -1749,226 +1749,164 @@ class basic_screen():
 			obj.draw()
 
 
+class basic_screen2():
+	def __init__(self,**kwargs):
+		for key in kwargs:
+			setattr(self, key, kwargs[key])
+		
+	def event_handle(self,event):
+		mouse_pos_x,mouse_pos_y = pygame.mouse.get_pos()
+		for obj in vars(self).keys():
+			if inside_polygon(mouse_pos_x, mouse_pos_y,vars(self)[obj].points):
+				vars(self)[obj].do(event)
+			if event.type == UPDATE_TIME_EVENT or event.type == SENSOR_EVENT:
+				vars(self)[obj].do(event)
+		
+	def draw(self):
+		screen.fill((0,0,0))
+		for obj in vars(self).keys():
+			vars(self)[obj].draw()
 
 
-class mainscreen(basic_screen):
-	def __init__(self):
-		self.xmax = screen_size_x
-		self.ymax = screen_size_y
-		self.name = "Main Screen"
-		
-		#here is all the objects you want in the screen
-		
-		#buttons that take you to other screens
-		rec_b_main = button_img_do((self.xmax-415,15),"MS on.png",donothing)
-		rec_b_datetime = button_img_do((self.xmax-415,95),"DT off.png",gotoscreen_DateTime)
-		rec_b_temp = button_img_do((self.xmax-415,175),"Temp off.png",gotoscreen_Temp)
-		rec_b_humid = button_img_do((self.xmax-415,255),"Humidity off.png",gotoscreen_Humid)
-		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",gotoscreen_ToDo)
-		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
-		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
-		rec_b_override = button_img_do((self.xmax-415,615),"overrides off.png",gotoscreen_Override)
-		
-		
-		#graphs of tem and humidity
-		#rec_g_temp = button_rec_do((15,70),(800,400),light_blue,"temp graph",False,gotoscreen_Temp)
-		ta_label = text_label((300,60),(200,30),"Average Temp",light_blue)
-		temp_graph = time_graph((15,100),(800,400),60,90,100,max_data_points,green,"Tempurature","TA")
-		ha_label = text_label((300,540),(200,30),"Average Humidity",light_blue)
-		humid_graph = time_graph((15,580),(800,400),20,110,100,max_data_points,light_blue,"Humidity","HA")
-		
-		#rec_g_humid = button_rec_do((15,550),(800,400),light_blue,"humidity graph",False,gotoscreen_Humid)
-		
-		#time and date
-		rec_l_date = date_label((15,15),(100,30),light_blue)
-		rec_l_time = time_label((130,15),(100,30),light_blue)
-		
-		rec_l_temp = sensor_label((250,15),(200,30),light_blue,"Temperature","TA")
-		rec_l_hum = sensor_label((950,15),(200,30),light_blue,"Humidity","TA")
-		
-		relay_status = relay_status_bar((500,15))
-		
-		#rotating status display
-		rot_b_status = rot_image_button((self.xmax-300,self.ymax-250),"green_gear.png",1,gotoscreen_Settings)
-		
-		
-		
-		
-		
-		#only objects in this list will be active (drawn)
-		self.objects = [rec_b_override,ha_label,ta_label,relay_status,humid_graph,temp_graph,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,rot_b_status,rec_l_temp,rec_l_hum]
-		
-		#only include this for first screen too be drawn
-		self.draw()
+
+class main_menu():
+	def __init__(self,screen_name):
+		pass
 
 
-class MCscreen(basic_screen):
-	def __init__(self):
-		self.xmax = screen_size_x
-		self.ymax = screen_size_y
-		self.name = "Manual Control"
-		self.warning = "*WARNING* Enabling manual control suspends all automated tasks, including environmental overrides! Disable when done!"
 
-		#here is all the objects you want in the screen
-		rec_b_main = button_img_do((self.xmax-415,15),"MS off.png",gotoscreen_Main)
-		rec_b_datetime = button_img_do((self.xmax-415,95),"DT off.png",gotoscreen_DateTime)
-		rec_b_temp = button_img_do((self.xmax-415,175),"Temp off.png",gotoscreen_Temp)
-		rec_b_humid = button_img_do((self.xmax-415,255),"Humidity off.png",gotoscreen_Humid)
-		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",gotoscreen_ToDo)
-		rec_b_MC = button_img_do((self.xmax-415,415),"MC on.png",donothing)
-		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
-		rec_b_override = button_img_do((self.xmax-415,615),"overrides off.png",gotoscreen_Override)
+main_screen = basic_screen2(
+#these need to be moved into one object called main menu as they are present, with slight variations, in every screen
+rec_b_main = button_img_do((screen_size_x-415,15),"MS on.png",donothing),
+rec_b_datetime = button_img_do((screen_size_x-415,95),"DT off.png",gotoscreen_DateTime),
+rec_b_temp = button_img_do((screen_size_x-415,175),"Temp off.png",gotoscreen_Temp),
+rec_b_humid = button_img_do((screen_size_x-415,255),"Humidity off.png",gotoscreen_Humid),
+rec_b_ToDo = button_img_do((screen_size_x-415,335),"ToDo off.png",gotoscreen_ToDo),
+rec_b_MC = button_img_do((screen_size_x-415,415),"MC off.png",gotoscreen_MC),
+rec_b_debug = button_img_do((screen_size_x-415,535),"Debug off.png",gotoscreen_Debug),
+rec_b_override = button_img_do((screen_size_x-415,615),"overrides off.png",gotoscreen_Override),
+rot_b_status = rot_image_button((screen_size_x-300,screen_size_y-250),"green_gear.png",1,gotoscreen_Settings),#rotating gear settings button
 
-		hex_p = hex_pad_RS((150,150),80,light_blue)
-		
-		relay_status = relay_status_bar((500,15))
-		
-		self.MC_tog = button_rec_tog((800,350),(250,200),yellow,"MANUAL CONTROL",False,MC_enable,MC_disable)
-		
-		#time and date
-		rec_l_date = date_label((15,15),(100,30),light_blue)
-		rec_l_time = time_label((130,15),(100,30),light_blue)
-		
-		rec_l_temp = sensor_label((250,15),(200,30),light_blue,"Temperature","TA")
-		rec_l_hum = sensor_label((950,15),(200,30),light_blue,"Humidity","TA")
-		
-		rot_b_status = rot_image_button((self.xmax-300,self.ymax-250),"green_gear.png",1,gotoscreen_Settings)
-		
-		self.objects = [rot_b_status,rec_b_override,rec_l_hum,rec_l_temp,rec_b_debug,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,relay_status,self.MC_tog,hex_p]
+ta_label = text_label((300,60),(200,30),"Average Temp",light_blue), #avg temp label
+temp_graph = time_graph((15,100),(800,400),60,90,100,max_data_points,green,"Tempurature","TA"), #avg temp graph
+ha_label = text_label((300,540),(200,30),"Average Humidity",light_blue), #avg hum label
+humid_graph = time_graph((15,580),(800,400),20,110,100,max_data_points,light_blue,"Humidity","HA"), #avg hum graph
+#time and date labels could also be moved outside of each class so you only have to instantiate them once
+rec_l_date = date_label((15,15),(100,30),light_blue), #date 
+rec_l_time = time_label((130,15),(100,30),light_blue), #time 
+rec_l_temp = sensor_label((250,15),(200,30),light_blue,"Temperature","TA"), #avg temp display
+rec_l_hum = sensor_label((950,15),(200,30),light_blue,"Humidity","TA"), #avg hum display
+relay_status = relay_status_bar((500,15))#relay status bar
+)
+main_screen.draw() #draws this screen on startup
 
 
-class tempscreen(basic_screen):
-	def __init__(self):
-		self.xmax = screen_size_x
-		self.ymax = screen_size_y
-		self.name = "Temp"
-		
-
-		#here is all the objects you want in the screen
-		rec_b_main = button_img_do((self.xmax-415,15),"MS off.png",gotoscreen_Main)
-		rec_b_datetime = button_img_do((self.xmax-415,95),"DT off.png",gotoscreen_DateTime)
-		rec_b_temp = button_img_do((self.xmax-415,175),"Temp on.png",donothing)
-		rec_b_humid = button_img_do((self.xmax-415,255),"Humidity off.png",gotoscreen_Humid)
-		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",gotoscreen_ToDo)
-		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
-		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
-		rec_b_override = button_img_do((self.xmax-415,615),"overrides off.png",gotoscreen_Override)
-
-		
-		
-		#Temp graphs. hight should depend on number of sensors and screensize: hight=(screenY-2*top/bottombuffer-2inbetweenbuffer)/(num_sensors+1)
-		ta_label = text_label((300,60),(200,30),"Average Temp",light_blue)
-		temp_graphA = time_graph((15,100),(800,220),60,90,100,max_data_points,green,"Tempurature","TA")
-		t1_label = text_label((300,380),(200,30),"Temp Sensor 1",light_blue)
-		temp_graph1 = time_graph((15,420),(800,220),60,90,100,max_data_points,green,"Tempurature","T1")
-		t2_label = text_label((300,700),(200,30),"Temp Sensor 2",light_blue)
-		temp_graph2 = time_graph((15,740),(800,220),60,90,100,max_data_points,green,"Tempurature","T2")
-		
-		#max/min temp
-		high_temp_l = sensor_label((950,150),(200,30),light_blue,"High Temp","TH")
-		low_temp_l = sensor_label((950,200),(200,30),light_blue,"Low Temp","TL")
-		error_temp = sensor_label((950,250),(200,30),yellow,"Errors","TE")
-		
-		clear_temp_data = button_rec_do((950,350),(200,90),purple,"Clear H/L/E",False,clear_temp_tracking)
-
-		#time and date
-		rec_l_date = date_label((15,15),(100,30),light_blue)
-		rec_l_time = time_label((130,15),(100,30),light_blue)
-		
-		relay_status = relay_status_bar((500,15))
-		
-		rot_b_status = rot_image_button((self.xmax-300,self.ymax-250),"green_gear.png",1,gotoscreen_Settings)
-		
-		self.objects = [rot_b_status,rec_b_override,error_temp,clear_temp_data,low_temp_l,high_temp_l,rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,t1_label,temp_graph1,t2_label,temp_graph2,ta_label,temp_graphA,relay_status]
 
 
-class humidscreen(basic_screen):
-	def __init__(self):
-		self.xmax = screen_size_x
-		self.ymax = screen_size_y
-		self.name = "Humidity"
-		
-
-		#here is all the objects you want in the screen
-		rec_b_main = button_img_do((self.xmax-415,15),"MS off.png",gotoscreen_Main)
-		rec_b_datetime = button_img_do((self.xmax-415,95),"DT off.png",gotoscreen_DateTime)
-		rec_b_temp = button_img_do((self.xmax-415,175),"Temp off.png",gotoscreen_Temp)
-		rec_b_humid = button_img_do((self.xmax-415,255),"Humidity on.png",donothing)
-		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",gotoscreen_ToDo)
-		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
-		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
-		rec_b_override = button_img_do((self.xmax-415,615),"overrides off.png",gotoscreen_Override)
-
-		
-		ha_label = text_label((300,60),(200,30),"Average Humidity",light_blue)
-		humid_graphA = time_graph((15,100),(800,220),60,110,100,max_data_points,light_blue,"Humidity","HA")
-		h1_label = text_label((300,380),(200,30),"Humidity Sensor 1",light_blue)
-		humid_graph1 = time_graph((15,420),(800,220),60,110,100,max_data_points,light_blue,"Humidity","H1")
-		h2_label = text_label((300,700),(200,30),"Humidity Sensor 2",light_blue)
-		humid_graph2 = time_graph((15,740),(800,220),60,110,100,max_data_points,light_blue,"Humidity","H2")
-		
-		
-		high_hum_l = sensor_label((950,150),(200,30),light_blue,"High Humidity","HH")
-		low_hum_l = sensor_label((950,200),(200,30),light_blue,"Low Humidity","HL")
-		error_hum = sensor_label((950,250),(200,30),yellow,"Errors","HE")
-		
-		clear_temp_data = button_rec_do((950,350),(200,90),purple,"Clear H/L/E",False,clear_hum_tracking)
-		
-		
-		#time and date
-		rec_l_date = date_label((15,15),(100,30),light_blue)
-		rec_l_time = time_label((130,15),(100,30),light_blue)
-		
-		relay_status = relay_status_bar((500,15))
-		
-		rot_b_status = rot_image_button((self.xmax-300,self.ymax-250),"green_gear.png",1,gotoscreen_Settings)
-		
-		self.objects = [rot_b_status,rec_b_override,clear_temp_data,error_hum,low_hum_l,high_hum_l,rec_b_debug,rec_b_MC,rec_b_main,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time,humid_graph1,humid_graph2,humid_graphA,ha_label,h1_label,h2_label,relay_status]
+MC_screen = basic_screen2(
+rec_b_main = button_img_do((screen_size_x-415,15),"MS off.png",gotoscreen_Main),
+rec_b_datetime = button_img_do((screen_size_x-415,95),"DT off.png",gotoscreen_DateTime),
+rec_b_temp = button_img_do((screen_size_x-415,175),"Temp off.png",gotoscreen_Temp),
+rec_b_humid = button_img_do((screen_size_x-415,255),"Humidity off.png",gotoscreen_Humid),
+rec_b_ToDo = button_img_do((screen_size_x-415,335),"ToDo off.png",gotoscreen_ToDo),
+rec_b_MC = button_img_do((screen_size_x-415,415),"MC on.png",donothing),
+rec_b_debug = button_img_do((screen_size_x-415,535),"Debug off.png",gotoscreen_Debug),
+rec_b_override = button_img_do((screen_size_x-415,615),"overrides off.png",gotoscreen_Override),
+hex_p = hex_pad_RS((150,150),80,light_blue),
+relay_status = relay_status_bar((500,15)),
+MC_tog = button_rec_tog((800,350),(250,200),yellow,"MANUAL CONTROL",False,MC_enable,MC_disable),
+rec_l_date = date_label((15,15),(100,30),light_blue),
+rec_l_time = time_label((130,15),(100,30),light_blue),
+rec_l_temp = sensor_label((250,15),(200,30),light_blue,"Temperature","TA"),
+rec_l_hum = sensor_label((950,15),(200,30),light_blue,"Humidity","TA"),
+rot_b_status = rot_image_button((screen_size_x-300,screen_size_y-250),"green_gear.png",1,gotoscreen_Settings),
+)
 
 
-class datetimescreen(basic_screen):
-	def __init__(self):
-		self.xmax = screen_size_x
-		self.ymax = screen_size_y
-		self.name = "Date & Time"
-		
 
-		#all the objects in the screen
-		rec_b_main = button_img_do((self.xmax-415,15),"MS off.png",gotoscreen_Main)
-		rec_b_datetime = button_img_do((self.xmax-415,95),"DT on.png",donothing)
-		rec_b_temp = button_img_do((self.xmax-415,175),"Temp off.png",gotoscreen_Temp)
-		rec_b_humid = button_img_do((self.xmax-415,255),"Humidity off.png",gotoscreen_Humid)
-		rec_b_ToDo = button_img_do((self.xmax-415,335),"ToDo off.png",gotoscreen_ToDo)
-		rec_b_MC = button_img_do((self.xmax-415,415),"MC off.png",gotoscreen_MC)
-		rec_b_debug = button_img_do((self.xmax-415,535),"Debug off.png",gotoscreen_Debug)
-		rec_b_override = button_img_do((self.xmax-415,615),"overrides off.png",gotoscreen_Override)
+temp_screen = basic_screen2(
+rec_b_main = button_img_do((screen_size_x-415,15),"MS off.png",gotoscreen_Main),
+rec_b_datetime = button_img_do((screen_size_x-415,95),"DT off.png",gotoscreen_DateTime),
+rec_b_temp = button_img_do((screen_size_x-415,175),"Temp on.png",donothing),
+rec_b_humid = button_img_do((screen_size_x-415,255),"Humidity off.png",gotoscreen_Humid),
+rec_b_ToDo = button_img_do((screen_size_x-415,335),"ToDo off.png",gotoscreen_ToDo),
+rec_b_MC = button_img_do((screen_size_x-415,415),"MC off.png",gotoscreen_MC),
+rec_b_debug = button_img_do((screen_size_x-415,535),"Debug off.png",gotoscreen_Debug),
+rec_b_override = button_img_do((screen_size_x-415,615),"overrides off.png",gotoscreen_Override),
+ta_label = text_label((300,60),(200,30),"Average Temp",light_blue),
+temp_graphA = time_graph((15,100),(800,220),60,90,100,max_data_points,green,"Tempurature","TA"),
+t1_label = text_label((300,380),(200,30),"Temp Sensor 1",light_blue),
+temp_graph1 = time_graph((15,420),(800,220),60,90,100,max_data_points,green,"Tempurature","T1"),
+t2_label = text_label((300,700),(200,30),"Temp Sensor 2",light_blue),
+temp_graph2 = time_graph((15,740),(800,220),60,90,100,max_data_points,green,"Tempurature","T2"),
+high_temp_l = sensor_label((950,150),(200,30),light_blue,"High Temp","TH"),
+low_temp_l = sensor_label((950,200),(200,30),light_blue,"Low Temp","TL"),
+error_temp = sensor_label((950,250),(200,30),yellow,"Errors","TE"),
+clear_temp_data = button_rec_do((950,350),(200,90),purple,"Clear H/L/E",False,clear_temp_tracking),
+rec_l_date = date_label((15,15),(100,30),light_blue),
+rec_l_time = time_label((130,15),(100,30),light_blue),
+relay_status = relay_status_bar((500,15)),
+rot_b_status = rot_image_button((screen_size_x-300,screen_size_y-250),"green_gear.png",1,gotoscreen_Settings),
+)
 
-		
-		month_label = text_label((120,90),(100,25),"Month",light_blue)
-		self.slide_wheel_month = round_slider_int((50,150),100, 20, light_blue, 1,12,1)
-		day_label = text_label((420,90),(100,25),"Day",light_blue)
-		self.slide_wheel_day = round_slider_int((350,150),100, 20, light_blue, 1,31,1)
-		year_label = text_label((720,90),(100,25),"Year",light_blue)
-		self.slide_wheel_year = round_slider_int((650,150),100, 20, light_blue, 2010,2050,2017)
-		hour_label = text_label((120,490),(100,25),"Hours",light_blue)
-		self.slide_wheel_hour = round_slider_int((50,550),100, 20, light_blue, 0,23,0)
-		minute_label = text_label((420,490),(100,25),"Minutes",light_blue)
-		self.slide_wheel_minute = round_slider_int((350,550),100, 20, light_blue, 0,59,0)
-		second_label = text_label((720,490),(100,25),"Seconds",light_blue)
-		self.slide_wheel_second = round_slider_int((650,550),100, 20, light_blue, 0,59,0)
-		
-		rec_b_getTime = button_img_do((90,self.ymax - 150),"gettime.png",getTime)
-		rec_b_setTime = button_img_do((500,self.ymax - 150),"settime.png",setTime)
-		
-		
-		#time and date
-		rec_l_date = date_label((15,15),(100,30),light_blue)
-		rec_l_time = time_label((130,15),(100,30),light_blue)
-		
-		rot_b_status = rot_image_button((self.xmax-300,self.ymax-250),"green_gear.png",1,gotoscreen_Settings)
 
-		
-		self.objects = [rot_b_status,rec_b_override,rec_b_debug,second_label,minute_label,hour_label,year_label,rec_b_main,rec_b_MC,rec_b_datetime,rec_b_temp,rec_b_humid,rec_b_ToDo,rec_l_date,rec_l_time, self.slide_wheel_month,self.slide_wheel_day,self.slide_wheel_year,self.slide_wheel_hour,self.slide_wheel_minute,self.slide_wheel_second,rec_b_getTime,rec_b_setTime,month_label,day_label]
+
+humid_screen = basic_screen2(
+rec_b_main = button_img_do((screen_size_x-415,15),"MS off.png",gotoscreen_Main),
+rec_b_datetime = button_img_do((screen_size_x-415,95),"DT off.png",gotoscreen_DateTime),
+rec_b_temp = button_img_do((screen_size_x-415,175),"Temp off.png",gotoscreen_Temp),
+rec_b_humid = button_img_do((screen_size_x-415,255),"Humidity on.png",donothing),
+rec_b_ToDo = button_img_do((screen_size_x-415,335),"ToDo off.png",gotoscreen_ToDo),
+rec_b_MC = button_img_do((screen_size_x-415,415),"MC off.png",gotoscreen_MC),
+rec_b_debug = button_img_do((screen_size_x-415,535),"Debug off.png",gotoscreen_Debug),
+rec_b_override = button_img_do((screen_size_x-415,615),"overrides off.png",gotoscreen_Override),
+ha_label = text_label((300,60),(200,30),"Average Humidity",light_blue),
+humid_graphA = time_graph((15,100),(800,220),60,110,100,max_data_points,light_blue,"Humidity","HA"),
+h1_label = text_label((300,380),(200,30),"Humidity Sensor 1",light_blue),
+humid_graph1 = time_graph((15,420),(800,220),60,110,100,max_data_points,light_blue,"Humidity","H1"),
+h2_label = text_label((300,700),(200,30),"Humidity Sensor 2",light_blue),
+humid_graph2 = time_graph((15,740),(800,220),60,110,100,max_data_points,light_blue,"Humidity","H2"),
+high_hum_l = sensor_label((950,150),(200,30),light_blue,"High Humidity","HH"),
+low_hum_l = sensor_label((950,200),(200,30),light_blue,"Low Humidity","HL"),
+error_hum = sensor_label((950,250),(200,30),yellow,"Errors","HE"),
+clear_temp_data = button_rec_do((950,350),(200,90),purple,"Clear H/L/E",False,clear_hum_tracking),
+rec_l_date = date_label((15,15),(100,30),light_blue),
+rec_l_time = time_label((130,15),(100,30),light_blue),
+relay_status = relay_status_bar((500,15)),
+rot_b_status = rot_image_button((screen_size_x-300,screen_size_y-250),"green_gear.png",1,gotoscreen_Settings),
+)
+
+
+datetime_screen = basic_screen2(
+rec_b_main = button_img_do((screen_size_x-415,15),"MS off.png",gotoscreen_Main),
+rec_b_datetime = button_img_do((screen_size_x-415,95),"DT on.png",donothing),
+rec_b_temp = button_img_do((screen_size_x-415,175),"Temp off.png",gotoscreen_Temp),
+rec_b_humid = button_img_do((screen_size_x-415,255),"Humidity off.png",gotoscreen_Humid),
+rec_b_ToDo = button_img_do((screen_size_x-415,335),"ToDo off.png",gotoscreen_ToDo),
+rec_b_MC = button_img_do((screen_size_x-415,415),"MC off.png",gotoscreen_MC),
+rec_b_debug = button_img_do((screen_size_x-415,535),"Debug off.png",gotoscreen_Debug),
+rec_b_override = button_img_do((screen_size_x-415,615),"overrides off.png",gotoscreen_Override),
+month_label = text_label((120,90),(100,25),"Month",light_blue),
+slide_wheel_month = round_slider_int((50,150),100, 20, light_blue, 1,12,1),
+day_label = text_label((420,90),(100,25),"Day",light_blue),
+slide_wheel_day = round_slider_int((350,150),100, 20, light_blue, 1,31,1),
+year_label = text_label((720,90),(100,25),"Year",light_blue),
+slide_wheel_year = round_slider_int((650,150),100, 20, light_blue, 2010,2050,2017),
+hour_label = text_label((120,490),(100,25),"Hours",light_blue),
+slide_wheel_hour = round_slider_int((50,550),100, 20, light_blue, 0,23,0),
+minute_label = text_label((420,490),(100,25),"Minutes",light_blue),
+slide_wheel_minute = round_slider_int((350,550),100, 20, light_blue, 0,59,0),
+second_label = text_label((720,490),(100,25),"Seconds",light_blue),
+slide_wheel_second = round_slider_int((650,550),100, 20, light_blue, 0,59,0),
+rec_b_getTime = button_img_do((90,screen_size_y - 150),"gettime.png",getTime),
+rec_b_setTime = button_img_do((500,screen_size_y - 150),"settime.png",setTime),
+rec_l_date = date_label((15,15),(100,30),light_blue),
+rec_l_time = time_label((130,15),(100,30),light_blue),
+rot_b_status = rot_image_button((screen_size_x-300,screen_size_y-250),"green_gear.png",1,gotoscreen_Settings),
+)
+
+
+
 
 #currently the debugging screen
 class debugscreen(basic_screen):
@@ -2249,12 +2187,12 @@ def arduino_control(cmd_type,cmd_specific):
 	elif cmd_type == "set":
 		
 		if cmd_specific == "datetime":
-			year = datetime_s.slide_wheel_year.dial_output
-			month = str(datetime_s.slide_wheel_month.dial_output).zfill(2)
-			day = datetime_s.slide_wheel_day.dial_output.zfill(2)
-			hour = datetime_s.slide_wheel_hour.dial_output.zfill(2)
-			minute = datetime_s.slide_wheel_minute.dial_output.zfill(2)
-			second = datetime_s.slide_wheel_second.dial_output.zfill(2)
+			year = datetime_screen.slide_wheel_year.dial_output
+			month = str(datetime_screen.slide_wheel_month.dial_output).zfill(2)
+			day = datetime_screen.slide_wheel_day.dial_output.zfill(2)
+			hour = datetime_screen.slide_wheel_hour.dial_output.zfill(2)
+			minute = datetime_screen.slide_wheel_minute.dial_output.zfill(2)
+			second = datetime_screen.slide_wheel_second.dial_output.zfill(2)
 			sys_now = datetime.datetime.now() #gets the systems version of time now
 			set_now = datetime.datetime(int(year), int(month), int(day), int(hour), int(minute), int(second), 0) #what you want the time to be
 			now_adjustment = set_now - sys_now  #the nessesary adjustment to the system time for it to be the time you want
@@ -2299,8 +2237,8 @@ def arduino_control(cmd_type,cmd_specific):
 				serial_comm.append("Manual Control Engaged")
 			else:
 				serial_comm.append("Failed to engage Manual Control")
-				mc_s.MC_tog.pressed = False
-				mc_s.MC_tog.draw()
+				MC_screen.MC_tog.pressed = False
+				MC_screen.MC_tog.draw()
 			
 		elif cmd_specific == "off":
 			if arduino_send_rec("<M0>") == "MCOFF":
@@ -2308,8 +2246,8 @@ def arduino_control(cmd_type,cmd_specific):
 				serial_comm.append("Manual Control disengaged")
 			else:
 				serial_comm.append("Failed to disengage Manual Control")
-				mc_s.MC_tog.pressed = True
-				mc_s.MC_tog.draw()
+				MC_screen.MC_tog.pressed = True
+				MC_screen.MC_tog.draw()
 			
 		elif cmd_specific == "set":
 			arduino_send_rec("<MR"+relay_state+">")
@@ -2324,22 +2262,22 @@ def arduino_control(cmd_type,cmd_specific):
 
 
 #initialize screens and therefore their objects
-main_s = mainscreen()
-mc_s = MCscreen()
+#main_s = mainscreen()
+#mc_s = MCscreen()
 debug_s = debugscreen()
-temp_s = tempscreen()
-humid_s = humidscreen()
-datetime_s = datetimescreen()
+#temp_s = tempscreen()
+#humid_s = humidscreen()
+#datetime_s = datetimescreen()
 paas_s = paasscreen()
 ToDo_s = ToDoscreen()
 or_s = Overridescreen()
 settings_s = settingsscreen()
 relaynames_s = relayrenamescreen()
 serial_s = serialscreen()
-screen_dict = {"Main":main_s,"MC":mc_s,"Debug":debug_s,"Temp":temp_s,"Humid":humid_s,"DateTime":datetime_s,"paas":paas_s,"ToDo":ToDo_s,"Override":or_s,"Settings":settings_s,"Relaynames":relaynames_s,"Serial":serial_s}
+screen_dict = {"Main":main_screen,"MC":MC_screen,"Debug":debug_s,"Temp":temp_screen,"Humid":humid_screen,"DateTime":datetime_screen,"paas":paas_s,"ToDo":ToDo_s,"Override":or_s,"Settings":settings_s,"Relaynames":relaynames_s,"Serial":serial_s}
 
 
-current_screen = main_s
+current_screen = main_screen
 
 
 
@@ -2517,6 +2455,8 @@ def event_handler(event):
 			for i,n in enumerate(original_RS):
 				mc_s.objects[-1].buttons[i].pressed=bool(int(n))
 			mc_s.objects[-1].buttons[-1].pressed = False #this needs fixing. Should not be refering to the button by it's location in the objects list
+			arduino_control("MC","set")
+			
 	
 	elif event.category == 'clearsensordata':
 		if event == clear_temp_tracking:
@@ -2569,7 +2509,7 @@ def event_handler(event):
 
 clock = pygame.time.Clock()
 
-current_screen = main_s #boots to main screen
+current_screen = main_screen #boots to main screen
 
 pygame.time.set_timer(UPDATE_TIME_EVENT, time_freq) #for updateing the time displayed
 pygame.time.set_timer(SENSOR_EVENT, sensor_freq) #timer for getting sensor data
@@ -2603,4 +2543,3 @@ while True:
 
 	pygame.display.flip()	
 	clock.tick(60)
-
